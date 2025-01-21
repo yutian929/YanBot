@@ -47,6 +47,12 @@ Human Robot Interaction Part. User information publisher. Voice interaction, scr
 - tts/
   - TODO
 
+### 5. [YanBot-Nav](https://github.com/yutian929/YanBot-Nav)
+
+Navigation Part. Path planning based on 3D indoor maps and 2D dynamic semantic maps.
+
+- TODO
+  - TODO
 
 ## System Architecture
 
