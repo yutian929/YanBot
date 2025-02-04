@@ -6,10 +6,21 @@ Welcome to YanBot, a self-developed home service robot designed to make your lif
 
 YanBot is comprised of several decoupled parts, each with its own unique function.
 
-### 1. [YanBot-Sense](https://github.com/yutian929/YanBot-Sense)
+### 1. [YanBot-Brain](https://github.com/yutian929/YanBot-Brain)
+
+Global control and plan. See other YanBot-XXX as services. 
+
+- brain/
+  - `TODO`
+- llm/
+  - `TODO`
+
+### 2. [YanBot-Sense](https://github.com/yutian929/YanBot-Sense)
 
 Sense Part. Camrea, Lidar... sensors data publisher. Robot's perception of the surrounding environment  including 3D semantic map generation. It includes some repos as module components:
 
+- sense/
+  - `TODO`
 - camera/
   - [realsense_ros](https://github.com/yutian929/YanBot-Sense_realsense_ros): Refined ROS wrapper for Intel RealSense cameras.
 - data/
@@ -22,37 +33,42 @@ Sense Part. Camrea, Lidar... sensors data publisher. Robot's perception of the s
   - [grounded_sam2](https://github.com/yutian929/YanBot-Sense_Grounded_SAM_2): Adapted Grounded_SAM_2, realize ROS integration in docker.
   - [paddlex](https://github.com/PaddlePaddle/PaddleX): a low-code development tool for AI models built on the PaddlePaddle framework.
 
-### 2. [YanBot-Arm](https://github.com/yutian929/YanBot-Arm)
+### 3. [YanBot-Arm](https://github.com/yutian929/YanBot-Arm)
 
 Arm Control Part. Arm control cmds subscriber. Robot arm joint pose publisher. Coordinate system conversion, motion planning, grasping and placing items.:
 
 - arx/
+  - arx_msgs: ARX Robot Arm ROS msgs.
   - [arx_pkg](https://github.com/yutian929/YanBot-Arm): ARX Robot Arm ROS package.
 
-### 3. [YanBot-Wheel](https://github.com/yutian929/YanBot-Wheel)
+### 4. [YanBot-Wheel](https://github.com/yutian929/YanBot-Wheel)
 
 AGV Control Part. Odometer data publisher. Move cmds subscriber.
 
-- TODO
-  - TODO
+- `TODO`
+  - `TODO`
 
-### 4. [YanBot-Interact](https://github.com/yutian929/YanBot-Interact)
+### 5. [YanBot-Interact](https://github.com/yutian929/YanBot-Interact)
 
 Human Robot Interaction Part. User information publisher. Voice interaction, screen UI display.
 
+- interact/
+  - interact_pkg: Containing launch file. Combine wakeup, stt, tts funcs.
 - wakeup/
   - [snowboy](https://github.com/yutian929/YanBot-Interact_snowboy): Refined general purpose offline voice recognition tool. Add yanyan voice model. Wrapped in ROS.
 - stt/
-  - TODO
+  - stt_msgs: STT.srv.
+  - stt_pkg: client(wrapped in ROS) & server of paddle_speech stt func.
 - tts/
-  - TODO
+  - tts_pkg: TTS.srv.
+  - stt_pkg: client(wrapped in ROS) & server of paddle_speech tts func.
 
-### 5. [YanBot-Nav](https://github.com/yutian929/YanBot-Nav)
+### 6. [YanBot-Nav](https://github.com/yutian929/YanBot-Nav)
 
 Navigation Part. Path planning based on 3D indoor maps and 2D dynamic semantic maps.
 
-- TODO
-  - TODO
+- `TODO`
+  - `TODO`
 
 ## System Architecture
 
