@@ -1,0 +1,8 @@
+prefix=/home/zjy/YanBot/devel
+
+Name: sense_pkg
+Description: Description of sense_pkg
+Version: 0.0.0
+Cflags: 
+Libs: -L${prefix}/lib 
+Requires: 

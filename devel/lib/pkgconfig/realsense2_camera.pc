@@ -1,0 +1,8 @@
+prefix=/home/zjy/YanBot/devel
+
+Name: realsense2_camera
+Description: Description of realsense2_camera
+Version: 2.3.2
+Cflags: -I/home/zjy/YanBot/devel/include -I/home/zjy/YanBot/src/Cerebellum/realsense_ros_pkg/realsense2_camera/include
+Libs: -L${prefix}/lib -lrealsense2_camera
+Requires: message_runtime roscpp sensor_msgs std_msgs nodelet cv_bridge image_transport ddynamic_reconfigure nav_msgs

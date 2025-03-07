@@ -1,0 +1,8 @@
+prefix=/home/zjy/YanBot/install
+
+Name: grounding_sam_ros
+Description: Description of grounding_sam_ros
+Version: 1.0.0
+Cflags: -I${prefix}/include
+Libs: -L${prefix}/lib 
+Requires: rospy

@@ -1,0 +1,2 @@
+set(realsense2_camera_MESSAGE_FILES "/home/zjy/YanBot/src/Cerebellum/realsense_ros_pkg/realsense2_camera/msg/IMUInfo.msg;/home/zjy/YanBot/src/Cerebellum/realsense_ros_pkg/realsense2_camera/msg/Extrinsics.msg;/home/zjy/YanBot/src/Cerebellum/realsense_ros_pkg/realsense2_camera/msg/Metadata.msg")
+set(realsense2_camera_SERVICE_FILES "/home/zjy/YanBot/src/Cerebellum/realsense_ros_pkg/realsense2_camera/srv/DeviceInfo.srv")

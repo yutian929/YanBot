@@ -1,0 +1,51 @@
+repos:
+-   repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v5.0.0
+    hooks:
+    -   id: check-added-large-files
+        args: ['--maxkb=2048']
+    -   id: check-case-conflict
+    -   id: check-merge-conflict
+    -   id: check-symlinks
+    -   id: detect-private-key
+    -   id: end-of-file-fixer
+    -   id: trailing-whitespace
+        files: \.(md|c|cc|cxx|cpp|cu|h|hpp|hxx|py)$
+-   repo: https://github.com/Lucas-C/pre-commit-hooks
+    rev: v1.5.5
+    hooks:
+    -   id: remove-crlf
+    -   id: remove-tabs
+        files: \.(md|c|cc|cxx|cpp|cu|h|hpp|hxx|py)$
+-   repo: https://github.com/pre-commit/mirrors-clang-format
+    rev: v16.0.6  # 选择需要的版本
+    hooks:
+    -   id: clang-format
+        args: [--style=file, -i]
+        files: \.(c|cc|cxx|cpp|cu|h|hpp|hxx|cuh|proto)$
+# For Python files
+-   repo: https://github.com/psf/black.git
+    rev: 22.12.0
+    hooks:
+    -   id: black
+        files: (.*\.(py|pyi|bzl)|BUILD|.*\.BUILD|WORKSPACE)$
+
+# Flake8
+-   repo: https://github.com/pycqa/flake8
+    rev: 7.1.1
+    hooks:
+    -   id: flake8
+        args:
+            - --count
+            - --select=E9,F63,F7,F82,E721
+            - --show-source
+            - --statistics
+
+# # check license
+# -   repo: local
+#     hooks:
+#     -   id: check-custom
+#         name: Check Custom
+#         entry: python .precommit/check_custom.py
+#         language: python
+#         files: \.py$
