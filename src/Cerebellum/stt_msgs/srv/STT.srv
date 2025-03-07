@@ -1,0 +1,5 @@
+# {"query": "stt.wav"}
+string input_json
+---
+string output_json
+# {"ans": txt}

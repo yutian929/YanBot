@@ -1,8 +1,0 @@
-prefix=/home/zjy/YanBot/devel
-
-Name: rtabmap_pkg
-Description: Description of rtabmap_pkg
-Version: 0.0.0
-Cflags: 
-Libs: -L${prefix}/lib 
-Requires: 

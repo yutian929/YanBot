@@ -1,8 +1,0 @@
-prefix=/home/zjy/YanBot/install
-
-Name: R5a
-Description: Description of R5a
-Version: 1.0.0
-Cflags: 
-Libs: -L${prefix}/lib 
-Requires: 

@@ -1,8 +1,0 @@
-prefix=/home/zjy/YanBot/devel
-
-Name: arx_r5_controller
-Description: Description of arx_r5_controller
-Version: 0.0.0
-Cflags: -I/home/zjy/YanBot/src/Cerebellum/arm_pkg/src/arx/arx_r5_controller/include
-Libs: -L${prefix}/lib 
-Requires: arx_msgs arx_r5_msg roscpp std_msgs

@@ -1,8 +1,0 @@
-prefix=/home/zjy/YanBot/devel
-
-Name: arx_msgs
-Description: Description of arx_msgs
-Version: 0.0.0
-Cflags: -I/home/zjy/YanBot/devel/include
-Libs: -L${prefix}/lib 
-Requires: message_runtime

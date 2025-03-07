@@ -1,8 +1,0 @@
-prefix=/home/zjy/YanBot/install
-
-Name: arx_r5_msg
-Description: Description of arx_r5_msg
-Version: 0.0.0
-Cflags: -I${prefix}/include
-Libs: -L${prefix}/lib 
-Requires: roscpp rospy std_msgs message_runtime

@@ -1,8 +1,0 @@
-prefix=/home/zjy/YanBot/devel
-
-Name: follow
-Description: Description of follow
-Version: 0.0.0
-Cflags: 
-Libs: -L${prefix}/lib 
-Requires: 
