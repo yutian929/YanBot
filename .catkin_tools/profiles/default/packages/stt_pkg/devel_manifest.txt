@@ -1,0 +1,5 @@
+Cerebellum/stt_dir/stt_pkg
+/home/yutian/YanBot/devel/.private/stt_pkg/cmake.lock /home/yutian/YanBot/devel/./cmake.lock
+/home/yutian/YanBot/devel/.private/stt_pkg/lib/pkgconfig/stt_pkg.pc /home/yutian/YanBot/devel/lib/pkgconfig/stt_pkg.pc
+/home/yutian/YanBot/devel/.private/stt_pkg/share/stt_pkg/cmake/stt_pkgConfig.cmake /home/yutian/YanBot/devel/share/stt_pkg/cmake/stt_pkgConfig.cmake
+/home/yutian/YanBot/devel/.private/stt_pkg/share/stt_pkg/cmake/stt_pkgConfig-version.cmake /home/yutian/YanBot/devel/share/stt_pkg/cmake/stt_pkgConfig-version.cmake

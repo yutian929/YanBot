@@ -1,0 +1,5 @@
+Cerebellum/arm_dir/arx/arx_pkg
+/home/yutian/YanBot/devel/.private/arx_pkg/cmake.lock /home/yutian/YanBot/devel/./cmake.lock
+/home/yutian/YanBot/devel/.private/arx_pkg/lib/pkgconfig/arx_pkg.pc /home/yutian/YanBot/devel/lib/pkgconfig/arx_pkg.pc
+/home/yutian/YanBot/devel/.private/arx_pkg/share/arx_pkg/cmake/arx_pkgConfig-version.cmake /home/yutian/YanBot/devel/share/arx_pkg/cmake/arx_pkgConfig-version.cmake
+/home/yutian/YanBot/devel/.private/arx_pkg/share/arx_pkg/cmake/arx_pkgConfig.cmake /home/yutian/YanBot/devel/share/arx_pkg/cmake/arx_pkgConfig.cmake

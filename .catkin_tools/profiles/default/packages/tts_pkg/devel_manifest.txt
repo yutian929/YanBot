@@ -1,0 +1,5 @@
+Cerebellum/tts_dir/tts_pkg
+/home/yutian/YanBot/devel/.private/tts_pkg/cmake.lock /home/yutian/YanBot/devel/./cmake.lock
+/home/yutian/YanBot/devel/.private/tts_pkg/lib/pkgconfig/tts_pkg.pc /home/yutian/YanBot/devel/lib/pkgconfig/tts_pkg.pc
+/home/yutian/YanBot/devel/.private/tts_pkg/share/tts_pkg/cmake/tts_pkgConfig.cmake /home/yutian/YanBot/devel/share/tts_pkg/cmake/tts_pkgConfig.cmake
+/home/yutian/YanBot/devel/.private/tts_pkg/share/tts_pkg/cmake/tts_pkgConfig-version.cmake /home/yutian/YanBot/devel/share/tts_pkg/cmake/tts_pkgConfig-version.cmake

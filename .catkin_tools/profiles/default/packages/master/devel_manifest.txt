@@ -1,0 +1,6 @@
+Cerebellum/arm_dir/arx/master
+/home/yutian/YanBot/devel/.private/master/cmake.lock /home/yutian/YanBot/devel/./cmake.lock
+/home/yutian/YanBot/devel/.private/master/lib/master/arm_master_node /home/yutian/YanBot/devel/lib/master/arm_master_node
+/home/yutian/YanBot/devel/.private/master/lib/pkgconfig/master.pc /home/yutian/YanBot/devel/lib/pkgconfig/master.pc
+/home/yutian/YanBot/devel/.private/master/share/master/cmake/masterConfig.cmake /home/yutian/YanBot/devel/share/master/cmake/masterConfig.cmake
+/home/yutian/YanBot/devel/.private/master/share/master/cmake/masterConfig-version.cmake /home/yutian/YanBot/devel/share/master/cmake/masterConfig-version.cmake

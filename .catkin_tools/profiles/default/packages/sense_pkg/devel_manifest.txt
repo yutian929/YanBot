@@ -1,0 +1,5 @@
+Cerebellum/sense_pkg
+/home/yutian/YanBot/devel/.private/sense_pkg/cmake.lock /home/yutian/YanBot/devel/./cmake.lock
+/home/yutian/YanBot/devel/.private/sense_pkg/lib/pkgconfig/sense_pkg.pc /home/yutian/YanBot/devel/lib/pkgconfig/sense_pkg.pc
+/home/yutian/YanBot/devel/.private/sense_pkg/share/sense_pkg/cmake/sense_pkgConfig-version.cmake /home/yutian/YanBot/devel/share/sense_pkg/cmake/sense_pkgConfig-version.cmake
+/home/yutian/YanBot/devel/.private/sense_pkg/share/sense_pkg/cmake/sense_pkgConfig.cmake /home/yutian/YanBot/devel/share/sense_pkg/cmake/sense_pkgConfig.cmake

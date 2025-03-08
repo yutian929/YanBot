@@ -9,14 +9,15 @@ from message_filters import ApproximateTimeSynchronizer, Subscriber
 from tf2_ros import Buffer, TransformListener
 import tf
 import struct
+from semantic_map_generator_pkg.msg import SemanticPointCloud
 from grounding_sam_ros.client import SamDetector
 from grounding_sam_ros.srv import VitDetection
 from grounding_sam_ros.srv import UpdatePrompt, UpdatePromptResponse
 
 
-class SemanticOctoMapGenerator:
+class SemanticMapGenerator:
     def __init__(self):
-        rospy.init_node("semantic_octomap_generator_node")
+        rospy.init_node("semantic_map_generator_node")
 
         # 初始化参数
         self.current_prompt = rospy.get_param(
@@ -43,7 +44,7 @@ class SemanticOctoMapGenerator:
 
         # 同步订阅
         ts = ApproximateTimeSynchronizer(
-            [image_sub, depth_sub, camera_info_sub], queue_size=5, slop=0.1
+            [image_sub, depth_sub, camera_info_sub], queue_size=5, slop=0.05
         )
         ts.registerCallback(self.sync_sub_callback)
 
@@ -52,8 +53,9 @@ class SemanticOctoMapGenerator:
         self.masks_pub = rospy.Publisher("~masks", Image, queue_size=1)
 
         # 语义地图发布
+        # self.semantic_clouds_memory_global = None
         self.semantic_cloud_pub = rospy.Publisher(
-            "~semantic_cloud", PointCloud2, queue_size=10
+            "/semantic_cloud", SemanticPointCloud, queue_size=10
         )
 
         # Prompt更新服务
@@ -205,7 +207,9 @@ class SemanticOctoMapGenerator:
         # 组合变换矩阵
         return np.dot(T, R)
 
-    def pixel_to_world(self, u, v, z):
+    def pixel_to_world(
+        self, u, v, z
+    ):  # u,v 是像素坐标, z是深度值 -> x_cam,y_cam,z_cam -> x, y, z in world
         """将像素坐标转换为世界坐标"""
         # 相机坐标系
 
@@ -234,14 +238,19 @@ class SemanticOctoMapGenerator:
         point_world = T.dot(point_cam)
         return point_world[:3]
 
-    def create_semantic_pointcloud(self, mask, label, score):
+    def create_semantic_pointcloud(
+        self, mask, label, score
+    ):  # mask=np.array=shape(H,W), label=str='chair', score=float=0.7
         # 针对一张语义掩码生成语义点云
         header = Header()
         header.stamp = rospy.Time.now()
         header.frame_id = "map"
 
         points_cnt = 0
-        packed_data = []
+        x_list = []
+        y_list = []
+        z_list = []
+        rgb_list = []
         height, width = mask.shape
 
         # 降采样步长（根据性能调整）
@@ -268,41 +277,21 @@ class SemanticOctoMapGenerator:
                         # 将RGB打包成UINT32（格式：0x00RRGGBB）
                         rgb = struct.pack("BBBB", b, g, r, 0)
                         rgb_value = struct.unpack("<I", rgb)[0]
-                        # 生成标签哈希（确保非负)
-                        label_hash = abs(hash(label)) % 10000
-                        # 打包点数据:x,y,z,rgb_value,label,score
-                        packed_data.append(
-                            struct.pack(
-                                "<fffIIf",
-                                point[0],
-                                point[1],
-                                point[2],
-                                rgb_value,
-                                label_hash,
-                                score,
-                            )
-                        )
+                        x_list.append(point[0])
+                        y_list.append(point[1])
+                        z_list.append(point[2])
+                        rgb_list.append(rgb_value)
 
-        # 创建PointCloud2消息
-        fields = [
-            PointField("x", 0, PointField.FLOAT32, 1),
-            PointField("y", 4, PointField.FLOAT32, 1),
-            PointField("z", 8, PointField.FLOAT32, 1),
-            PointField("rgb", 12, PointField.UINT32, 1),  # 颜色通道
-            PointField("label", 16, PointField.UINT32, 1),
-            PointField("confidence", 20, PointField.FLOAT32, 1),
-        ]
+        # 创建SemanticPointCloud消息
 
-        cloud = PointCloud2(
-            header=header,
-            height=1,
-            width=points_cnt,
-            is_dense=True,
-            is_bigendian=False,
-            fields=fields,
-            point_step=24,  # 4 * 6 = 24字节/点
-            row_step=24 * points_cnt,
-            data=b"".join(packed_data),
+        cloud = SemanticPointCloud(
+            count=points_cnt,
+            x=x_list,
+            y=y_list,
+            z=z_list,
+            rgb=rgb_list,
+            label=label,
+            confidence=score,
         )
 
         rospy.loginfo(f"Generated {points_cnt} points for {label}")
@@ -369,19 +358,25 @@ class SemanticOctoMapGenerator:
         except Exception as e:
             rospy.logerr(f"Processing error: {str(e)}")
 
-        # TODO
-        # 生成语义点云
-        semantic_clouds = []
+        # 生成当前帧合并语义点云
+        # semantic_clouds = None
         for mask, label, score in zip(masks, labels, scores):
             cloud = self.create_semantic_pointcloud(mask, label, score)
-            semantic_clouds.append(cloud)
+            # if semantic_clouds is None:
+            #     semantic_clouds = cloud
+            # else:
+            #     semantic_clouds = self.merge_clouds(semantic_clouds, cloud)
+            self.semantic_cloud_pub.publish(cloud)
 
-        # 合并点云发布
-        if len(semantic_clouds) > 0:
-            merged_cloud = semantic_clouds[0]
-            for cloud in semantic_clouds[1:]:
-                merged_cloud = self.merge_clouds(merged_cloud, cloud)
-            self.semantic_cloud_pub.publish(merged_cloud)
+        # # 更新到全局记忆语义点云
+        # if self.semantic_clouds_memory_global is None:
+        #     self.semantic_clouds_memory_global = semantic_clouds
+        # else:
+        #     self.semantic_clouds_memory_global = self.merge_clouds(
+        #         self.semantic_clouds_memory_global, semantic_clouds
+        #     )
+
+        # self.semantic_cloud_pub.publish(self.semantic_clouds_memory_global)
 
         self.latest_image = None
         self.latest_depth = None
@@ -389,7 +384,7 @@ class SemanticOctoMapGenerator:
 
 if __name__ == "__main__":
     try:
-        node = SemanticOctoMapGenerator()
+        node = SemanticMapGenerator()
         rospy.spin()
     except rospy.ROSInterruptException:
         pass

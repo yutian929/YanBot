@@ -1,0 +1,22 @@
+Cerebellum/stt_dir/stt_msgs
+/home/yutian/YanBot/devel/.private/stt_msgs/cmake.lock /home/yutian/YanBot/devel/./cmake.lock
+/home/yutian/YanBot/devel/.private/stt_msgs/include/stt_msgs/STTResponse.h /home/yutian/YanBot/devel/include/stt_msgs/STTResponse.h
+/home/yutian/YanBot/devel/.private/stt_msgs/include/stt_msgs/STT.h /home/yutian/YanBot/devel/include/stt_msgs/STT.h
+/home/yutian/YanBot/devel/.private/stt_msgs/include/stt_msgs/STTRequest.h /home/yutian/YanBot/devel/include/stt_msgs/STTRequest.h
+/home/yutian/YanBot/devel/.private/stt_msgs/lib/python3/dist-packages/stt_msgs/__init__.py /home/yutian/YanBot/devel/lib/python3/dist-packages/stt_msgs/__init__.py
+/home/yutian/YanBot/devel/.private/stt_msgs/lib/python3/dist-packages/stt_msgs/srv/_STT.py /home/yutian/YanBot/devel/lib/python3/dist-packages/stt_msgs/srv/_STT.py
+/home/yutian/YanBot/devel/.private/stt_msgs/lib/python3/dist-packages/stt_msgs/srv/__init__.py /home/yutian/YanBot/devel/lib/python3/dist-packages/stt_msgs/srv/__init__.py
+/home/yutian/YanBot/devel/.private/stt_msgs/lib/pkgconfig/stt_msgs.pc /home/yutian/YanBot/devel/lib/pkgconfig/stt_msgs.pc
+/home/yutian/YanBot/devel/.private/stt_msgs/share/gennodejs/ros/stt_msgs/_index.js /home/yutian/YanBot/devel/share/gennodejs/ros/stt_msgs/_index.js
+/home/yutian/YanBot/devel/.private/stt_msgs/share/gennodejs/ros/stt_msgs/srv/_index.js /home/yutian/YanBot/devel/share/gennodejs/ros/stt_msgs/srv/_index.js
+/home/yutian/YanBot/devel/.private/stt_msgs/share/gennodejs/ros/stt_msgs/srv/STT.js /home/yutian/YanBot/devel/share/gennodejs/ros/stt_msgs/srv/STT.js
+/home/yutian/YanBot/devel/.private/stt_msgs/share/roseus/ros/stt_msgs/manifest.l /home/yutian/YanBot/devel/share/roseus/ros/stt_msgs/manifest.l
+/home/yutian/YanBot/devel/.private/stt_msgs/share/roseus/ros/stt_msgs/srv/STT.l /home/yutian/YanBot/devel/share/roseus/ros/stt_msgs/srv/STT.l
+/home/yutian/YanBot/devel/.private/stt_msgs/share/stt_msgs/cmake/stt_msgsConfig-version.cmake /home/yutian/YanBot/devel/share/stt_msgs/cmake/stt_msgsConfig-version.cmake
+/home/yutian/YanBot/devel/.private/stt_msgs/share/stt_msgs/cmake/stt_msgs-msg-paths.cmake /home/yutian/YanBot/devel/share/stt_msgs/cmake/stt_msgs-msg-paths.cmake
+/home/yutian/YanBot/devel/.private/stt_msgs/share/stt_msgs/cmake/stt_msgsConfig.cmake /home/yutian/YanBot/devel/share/stt_msgs/cmake/stt_msgsConfig.cmake
+/home/yutian/YanBot/devel/.private/stt_msgs/share/stt_msgs/cmake/stt_msgs-msg-extras.cmake /home/yutian/YanBot/devel/share/stt_msgs/cmake/stt_msgs-msg-extras.cmake
+/home/yutian/YanBot/devel/.private/stt_msgs/share/common-lisp/ros/stt_msgs/srv/stt_msgs-srv.asd /home/yutian/YanBot/devel/share/common-lisp/ros/stt_msgs/srv/stt_msgs-srv.asd
+/home/yutian/YanBot/devel/.private/stt_msgs/share/common-lisp/ros/stt_msgs/srv/_package.lisp /home/yutian/YanBot/devel/share/common-lisp/ros/stt_msgs/srv/_package.lisp
+/home/yutian/YanBot/devel/.private/stt_msgs/share/common-lisp/ros/stt_msgs/srv/_package_STT.lisp /home/yutian/YanBot/devel/share/common-lisp/ros/stt_msgs/srv/_package_STT.lisp
+/home/yutian/YanBot/devel/.private/stt_msgs/share/common-lisp/ros/stt_msgs/srv/STT.lisp /home/yutian/YanBot/devel/share/common-lisp/ros/stt_msgs/srv/STT.lisp

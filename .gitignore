@@ -1,5 +1,7 @@
 __pycache__
 *.pyc
+.catkin_workspace
 build/
 devel/
-.catkin_workspace
+logs/
+temp/

@@ -1,0 +1,5 @@
+Cerebellum/wakeup_pkg
+/home/yutian/YanBot/devel/.private/wakeup_pkg/cmake.lock /home/yutian/YanBot/devel/./cmake.lock
+/home/yutian/YanBot/devel/.private/wakeup_pkg/lib/pkgconfig/wakeup_pkg.pc /home/yutian/YanBot/devel/lib/pkgconfig/wakeup_pkg.pc
+/home/yutian/YanBot/devel/.private/wakeup_pkg/share/wakeup_pkg/cmake/wakeup_pkgConfig.cmake /home/yutian/YanBot/devel/share/wakeup_pkg/cmake/wakeup_pkgConfig.cmake
+/home/yutian/YanBot/devel/.private/wakeup_pkg/share/wakeup_pkg/cmake/wakeup_pkgConfig-version.cmake /home/yutian/YanBot/devel/share/wakeup_pkg/cmake/wakeup_pkgConfig-version.cmake
