@@ -1,0 +1,50 @@
+<launch>
+    <!-- 唤醒词检测节点 -->
+    <node name="wakeup_detector" 
+          pkg="wakeup_pkg" 
+          type="wakeup_snowboy.py"
+          output="screen"
+          respawn="true">
+        <!-- <param name="model" value="$(find wakeup_pkg)/models/snowboy.pmdl"/>
+        <param name="sensitivity" value="0.5"/>
+        <param name="audio_gain" value="1.0"/> -->
+    </node>
+
+    <!-- 语音识别服务(STT) -->
+    <node name="stt_service" 
+          pkg="stt_pkg" 
+          type="client_paddle_speech.py"
+          output="screen">
+        <!-- <param name="model_dir" value="$(find stt_pkg)/models/conformer_wenetspeech"/>
+        <param name="sample_rate" value="16000"/> -->
+    </node>
+
+    <!-- 语音合成服务(TTS) -->
+    <node name="tts_service" 
+          pkg="tts_pkg" 
+          type="client_paddle_speech.py"
+          output="screen">
+        <!-- <param name="output_dir" value="$(find tts_pkg)/output"/>
+        <param name="voice" value="female"/> -->
+    </node>
+
+    <!-- 主交互节点 -->
+    <node name="interaction_core" 
+          pkg="interact_pkg" 
+          type="interact_node.py"
+          output="screen"
+          required="true">
+        <!-- <param name="wakeup_topic" value="topic_wakeup"/> -->
+        <!-- <param name="audio_save_path" value="$(find interact_pkg)/records"/> -->
+        <!-- 静音检测参数 -->
+        <!-- <param name="silence_threshold" value="0.02" /> -->
+        <!-- <param name="max_silence_duration" value="1.0" /> -->
+        <!-- 跨平台播放命令 -->
+        <!-- <param name="play_cmd_linux" value="aplay -q" /> -->
+        <!-- <param name="play_cmd_macos" value="afplay" /> -->
+    </node>
+
+    <!-- 统一日志配置 -->
+    <!-- <env name="ROSCONSOLE_FORMAT" 
+         value="[${severity}] [${time}]: ${message}"/> -->
+</launch>

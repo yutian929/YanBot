@@ -8,7 +8,7 @@ YanBot is comprised of several decoupled parts, each with its own unique functio
 
 ### 1. [YanBot-Brain](https://github.com/yutian929/YanBot-Brain)
 
-Global control and plan. See other YanBot-XXX as services. 
+Global control and plan. See other YanBot-XXX as services.
 
 - brain/
   - `TODO`
@@ -74,6 +74,6 @@ Navigation Part. Path planning based on 3D indoor maps and 2D dynamic semantic m
 
 The following diagram provides an overview of the whole system architecture of YanBot. This diagram illustrates how each module and their respective components interact with each other to provide a seamless and efficient service.
 
-![YanBot System Architecture](README/whiteboard_exported_image.png)
+![YanBot System Architecture](docs/whiteboard_exported_image.png)
 
 Feel free to explore each module and component to gain a deeper understanding of how YanBot works. Your contributions and suggestions are always welcome!

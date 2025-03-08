@@ -1,0 +1,18 @@
+<launch>
+    <!-- 启动 Realsense D435 相机 -->
+    <include file="$(find realsense2_camera)/launch/rs_camera.launch">
+        <arg name="align_depth" value="true" />
+    </include>
+
+    <!-- 启动 RTAB-Map 建图 -->
+    <include file="$(find rtabmap_launch)/launch/rtabmap.launch">
+        <arg name="rtabmap_args" value="--localization" />
+        <arg name="localization" value="true" />
+        <arg name="database_path" value="$(env HOME)/simple_rtabmap.db" />
+        <arg name="depth_topic" value="/camera/aligned_depth_to_color/image_raw" />
+        <arg name="rgb_topic" value="/camera/color/image_raw" />
+        <arg name="camera_info_topic" value="/camera/color/camera_info" />
+        <arg name="approx_sync" value="false" />
+    </include>
+</launch>
+    
