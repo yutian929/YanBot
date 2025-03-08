@@ -1,106 +1,192 @@
 #!/usr/bin/env python
 import rospy
 import sqlite3
+import numpy as np
+import struct
+import threading
 from semantic_map_generator_pkg.msg import SemanticPointCloud
 from sensor_msgs.msg import PointCloud2, PointField
 from std_msgs.msg import Header
-import struct
-import threading
 
 
-class SemanticMapManager:
+class LabelBasedDatabase:
     def __init__(self):
-        rospy.init_node("semantic_map_manager_node")
+        rospy.init_node("semantic_map_manager")
 
-        # 初始化线程安全组件
-        self.db_lock = threading.Lock()
-        self._init_database()
+        # 数据库配置
+        self.db_path = "semantic_map.db"
+        self.lock = threading.Lock()
+        self._init_db()
 
-        # 订阅语义点云
+        # ROS配置
         self.sub = rospy.Subscriber(
             "/semantic_cloud", SemanticPointCloud, self.cloud_callback
         )
-
-        # 创建地图发布器
         self.pub = rospy.Publisher("/semantic_map", PointCloud2, queue_size=10)
+        self.timer = rospy.Timer(rospy.Duration(3), self.publish_map)
 
-        # 定时发布地图（3秒间隔）
-        self.timer = rospy.Timer(rospy.Duration(3), self.publish_map_callback)
-
-    def _get_connection(self):
-        """创建新的线程安全数据库连接"""
-        conn = sqlite3.connect("semantic_map.db", check_same_thread=False)
+    def _get_conn(self):
+        """获取线程安全连接并配置二进制支持"""
+        conn = sqlite3.connect(
+            self.db_path,
+            check_same_thread=False,
+            detect_types=sqlite3.PARSE_DECLTYPES,  # 添加类型解析支持
+        )
+        # 注册二进制数据适配器
+        sqlite3.register_converter("BLOB", lambda x: x)
         conn.execute("PRAGMA journal_mode = WAL")
-        rospy.loginfo("Connected to database")
         return conn
 
-    def _init_database(self):
-        """初始化数据库结构"""
-        with self.db_lock:
-            conn = self._get_connection()
+    def _init_db(self):
+        """初始化数据库表结构"""
+        with self.lock:
+            conn = self._get_conn()
             try:
                 conn.execute(
                     """
-                    CREATE TABLE IF NOT EXISTS points (
-                        x REAL, y REAL, z REAL,
-                        rgb INTEGER,
-                        label TEXT,
-                        confidence REAL
+                    CREATE TABLE IF NOT EXISTS label_clouds (
+                        label TEXT PRIMARY KEY,
+                        x_data BLOB NOT NULL,
+                        y_data BLOB NOT NULL,
+                        z_data BLOB NOT NULL,
+                        rgb_data BLOB NOT NULL
                     )
                 """
                 )
-                conn.execute("CREATE INDEX IF NOT EXISTS label_idx ON points(label)")
                 conn.commit()
             finally:
                 conn.close()
 
+    def _pack_coordinates(self, data):
+        """将坐标数据打包为二进制格式"""
+        return np.array(data, dtype=np.float32).tobytes()
+
+    def _pack_colors(self, data):
+        """将颜色数据打包为二进制格式"""
+        return np.array(data, dtype=np.uint32).tobytes()
+
     def cloud_callback(self, msg):
-        """处理点云订阅回调"""
+        """增加数据有效性检查的写入方法"""
         try:
-            point_cnt = msg.count
-            x_list = msg.x
-            y_list = msg.y
-            z_list = msg.z
-            rgb_list = msg.rgb
-            label = msg.label
-            confidence = msg.confidence
+            # 验证数据长度一致性
+            if not (len(msg.x) == len(msg.y) == len(msg.z) == len(msg.rgb)):
+                rospy.logerr("Inconsistent data length")
+                return
 
-            points = [
-                (x_list[i], y_list[i], z_list[i], rgb_list[i], label, confidence)
-                for i in range(point_cnt)
-            ]
+            # 转换为二进制时捕获异常
+            try:
+                x_bin = np.array(msg.x, dtype=np.float32).tobytes()
+                y_bin = np.array(msg.y, dtype=np.float32).tobytes()
+                z_bin = np.array(msg.z, dtype=np.float32).tobytes()
+                rgb_bin = np.array(msg.rgb, dtype=np.uint32).tobytes()
+            except Exception as e:
+                rospy.logerr(f"Data conversion failed: {str(e)}")
+                return
 
-            # breakpoint()
-
-            with self.db_lock:
-                conn = self._get_connection()
+            with self.lock:
+                conn = self._get_conn()
                 try:
-                    conn.executemany("INSERT INTO points VALUES (?,?,?,?,?,?)", points)
+                    # 使用参数化查询确保数据安全
+                    conn.execute(
+                        """
+                        INSERT INTO label_clouds (label, x_data, y_data, z_data, rgb_data)
+                        VALUES (?, ?, ?, ?, ?)
+                        ON CONFLICT(label) DO UPDATE SET
+                            x_data = x_data || excluded.x_data,
+                            y_data = y_data || excluded.y_data,
+                            z_data = z_data || excluded.z_data,
+                            rgb_data = rgb_data || excluded.rgb_data
+                    """,
+                        (
+                            msg.label,
+                            sqlite3.Binary(x_bin),  # 显式声明二进制类型
+                            sqlite3.Binary(y_bin),
+                            sqlite3.Binary(z_bin),
+                            sqlite3.Binary(rgb_bin),
+                        ),
+                    )
                     conn.commit()
-                    rospy.loginfo(f"Inserted {len(points)} points into database")
+                    rospy.loginfo(f"Updated {msg.label} with {len(msg.x)} points")
+                except sqlite3.IntegrityError as e:
+                    rospy.logerr(f"Database integrity error: {str(e)}")
                 finally:
                     conn.close()
 
         except Exception as e:
-            rospy.logerr(f"Error processing point cloud: {str(e)}")
+            rospy.logerr(f"Cloud callback error: {str(e)}")
 
-    def publish_map_callback(self, event=None):
-        """定时发布完整语义地图（线程安全版本）"""
+    def _unpack_cloud(self, label):
+        """修复后的解包方法"""
+        with self.lock:
+            conn = self._get_conn()
+            try:
+                # 使用CAST确保二进制类型识别
+                cur = conn.execute(
+                    """
+                    SELECT
+                        CAST(x_data AS BLOB),
+                        CAST(y_data AS BLOB),
+                        CAST(z_data AS BLOB),
+                        CAST(rgb_data AS BLOB)
+                    FROM label_clouds WHERE label = ?
+                """,
+                    (label,),
+                )
+                row = cur.fetchone()
+
+                if row:
+                    # 空数据检查
+                    if not any(row):
+                        return None
+
+                    # 解包时增加错误处理
+                    try:
+                        x = np.frombuffer(row[0], dtype=np.float32)
+                        y = np.frombuffer(row[1], dtype=np.float32)
+                        z = np.frombuffer(row[2], dtype=np.float32)
+                        rgb = np.frombuffer(row[3], dtype=np.uint32)
+                    except ValueError as e:
+                        rospy.logwarn(f"Data unpack error: {str(e)}")
+                        return None
+
+                    # 数据长度校验
+                    min_len = min(x.size, y.size, z.size, rgb.size)
+                    if min_len == 0:
+                        return None
+
+                    return np.vstack(
+                        [x[:min_len], y[:min_len], z[:min_len], rgb[:min_len]]
+                    ).T
+                return None
+            finally:
+                conn.close()
+
+    def publish_map(self, event=None):
+        """修复后的发布方法"""
         try:
-            points = []
-            with self.db_lock:
-                conn = self._get_connection()
+            # 获取所有标签
+            with self.lock:
+                conn = self._get_conn()
                 try:
-                    cursor = conn.cursor()
-                    cursor.execute("SELECT x, y, z, rgb FROM points")
-                    points = cursor.fetchall()
+                    labels = [
+                        row[0] for row in conn.execute("SELECT label FROM label_clouds")
+                    ]
                 finally:
                     conn.close()
 
-            if not points:
-                return
+            # 合并所有点云
+            all_points = []
+            for label in labels:
+                cloud = self._unpack_cloud(label)
+                # 修改判断逻辑
+                if cloud is not None and len(cloud) > 0:
+                    all_points.extend(cloud.tolist())
 
-            # 准备点云数据
+            if not all_points:
+                rospy.logwarn("No points to publish")
+                return
+            # breakpoint()
+            # 转换为ROS消息
             header = Header(stamp=rospy.Time.now(), frame_id="map")
             fields = [
                 PointField("x", 0, PointField.FLOAT32, 1),
@@ -109,35 +195,41 @@ class SemanticMapManager:
                 PointField("rgb", 12, PointField.UINT32, 1),
             ]
 
-            # 使用更高效的方式打包数据
-            fmt = "<3fI"  # 小端字节序：3个float + 1个uint32
-            packed_data = [struct.pack(fmt, p[0], p[1], p[2], p[3]) for p in points]
+            # 定义结构化数据类型
+            point_dtype = [
+                ("x", np.float32),
+                ("y", np.float32),
+                ("z", np.float32),
+                ("rgb", np.uint32),
+            ]
 
-            # breakpoint()
+            # 转换为结构化数组
+            structured_array = np.array(
+                [(p[0], p[1], p[2], p[3]) for p in all_points], dtype=point_dtype
+            )
+
+            # 直接使用数组的tobytes()方法
+            packed_data = structured_array.tobytes()
 
             cloud = PointCloud2(
                 header=header,
                 height=1,
-                width=len(points),
+                width=len(structured_array),
                 is_dense=True,
                 is_bigendian=False,
                 fields=fields,
-                point_step=16,  # 4 * 3 + 4 = 16 bytes
-                row_step=16 * len(points),
-                data=b"".join(packed_data),
+                point_step=16,
+                row_step=16 * len(structured_array),
+                data=packed_data,
             )
 
             self.pub.publish(cloud)
-            rospy.loginfo(f"Published {len(points)} points to semantic_map")
+            rospy.loginfo(f"Published {len(structured_array)} points")
 
         except Exception as e:
-            rospy.logerr(f"Error publishing map: {str(e)}")
-
-    def __del__(self):
-        """确保关闭所有数据库连接"""
-        pass  # 不需要显式关闭，因为每次操作后都立即关闭了连接
+            rospy.logerr(f"Publishing failed: {str(e)}")
 
 
 if __name__ == "__main__":
-    manager = SemanticMapManager()
+    manager = LabelBasedDatabase()
     rospy.spin()

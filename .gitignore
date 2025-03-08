@@ -1,6 +1,7 @@
 __pycache__
 *.pyc
 .catkin_workspace
+.vscode/
 build/
 devel/
 logs/
