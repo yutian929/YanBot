@@ -8,6 +8,20 @@ check_success() {
     fi
 }
 
+# check whether $YANBOT_WS existed.
+check_ws() {
+    if [ -z "$YANBOT_WS" ]; then
+        echo "YANBOT_WS is not set. Exiting."
+        exit 1
+    else 
+        echo "YANBOT_WS is set to $YANBOT_WS"
+        cd $YANBOT_WS
+    fi
+}
+
+# check and goto YANBOT_WS
+check_ws
+
 # camera
 sudo apt install libssl-dev libusb-1.0-0-dev pkg-config libgtk-3-dev libglfw3-dev libgl1-mesa-dev libglu1-mesa-dev 
 ## librealsense
@@ -39,8 +53,8 @@ sudo make install
 check_success
 cd ../../..
 ## realsense-ros
-mkdir -p src/camera/
-cd src/camera/
+mkdir -p src/Cerebellum/
+cd src/Cerebellum/
 if [ -d "realsense_ros" ]; then
     echo "realsense_ros directory already exists. Skipping clone."
 else

@@ -5,3 +5,7 @@ build/
 devel/
 logs/
 temp/
+thirdparties/
+
+# third parties ros packages, installed by scripts
+src/Cerebellum/realsense_ros/

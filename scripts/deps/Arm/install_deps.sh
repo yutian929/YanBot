@@ -19,7 +19,7 @@ check_ws() {
     fi
 }
 
-# goto YANBOT_WS
+# check and goto YANBOT_WS
 check_ws
 
 sudo apt install udev
