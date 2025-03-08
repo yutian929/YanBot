@@ -8,6 +8,20 @@ check_success() {
     fi
 }
 
+# check whether $YANBOT_WS existed.
+check_ws() {
+    if [ -z "$YANBOT_WS" ]; then
+        echo "YANBOT_WS is not set. Exiting."
+        exit 1
+    else 
+        echo "YANBOT_WS is set to $YANBOT_WS"
+        cd $YANBOT_WS
+    fi
+}
+
+# check and goto YANBOT_WS
+check_ws
+
 # Prompt the user to choose installation method
 echo "Select the installation method for PaddleX: DEFAULT=2"
 echo "1. Docker Container"
@@ -21,8 +35,8 @@ if [[ "$choice" != "1" && "$choice" != "2" ]]; then
 fi
 
 # Clone PaddleX
-mkdir -p src/perception/
-cd src/perception/
+mkdir -p src/Cerebellum/
+cd src/Cerebellum/
 
 if [ -d "paddlex" ]; then
     echo "paddlex directory already exists. Skipping clone."
@@ -33,7 +47,7 @@ else
 fi
 
 echo "Next, will build docker-paddlex, version 3.0.0b2, date 2025-2-4."
-echo "Instructions can be found in src/perception/paddlex/REAMDE.md"
+echo "Instructions can be found in src/Cerebellum/paddlex/REAMDE.md"
 
 cd ../../
 
@@ -112,7 +126,7 @@ else
     check_success
 
     # paddlex
-    cd src/perception/paddlex
+    cd src/Cerebellum/paddlex
     pip install -e .
     check_success
     cd ../../../

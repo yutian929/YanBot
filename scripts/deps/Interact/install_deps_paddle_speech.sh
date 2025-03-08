@@ -1,5 +1,19 @@
 #!/bin/bash
 
+# check whether $YANBOT_WS existed.
+check_ws() {
+    if [ -z "$YANBOT_WS" ]; then
+        echo "YANBOT_WS is not set. Exiting."
+        exit 1
+    else 
+        echo "YANBOT_WS is set to $YANBOT_WS"
+        cd $YANBOT_WS
+    fi
+}
+
+# check and goto YANBOT_WS
+check_ws
+
 # Configuration
 IMAGE_REPO="paddlecloud/paddlespeech"
 GPU_IMAGE_TAG="develop-gpu-cuda11.2-cudnn8-fb4d25"  # CUDA 11.2 image

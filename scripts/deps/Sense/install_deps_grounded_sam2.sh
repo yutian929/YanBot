@@ -8,9 +8,23 @@ check_success() {
     fi
 }
 
+# check whether $YANBOT_WS existed.
+check_ws() {
+    if [ -z "$YANBOT_WS" ]; then
+        echo "YANBOT_WS is not set. Exiting."
+        exit 1
+    else 
+        echo "YANBOT_WS is set to $YANBOT_WS"
+        cd $YANBOT_WS
+    fi
+}
+
+# check and goto YANBOT_WS
+check_ws
+
 # Clone grounded_sam2 (公共步骤)
-mkdir -p src/perception/
-cd src/perception/
+mkdir -p src/Cerebellum/
+cd src/Cerebellum/
 
 if [ -d "grounded_sam2" ]; then
     echo "grounded_sam2 directory already exists. Skipping clone."
