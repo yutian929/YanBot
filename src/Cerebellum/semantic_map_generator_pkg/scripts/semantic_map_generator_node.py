@@ -17,7 +17,7 @@ from grounding_sam_ros.srv import UpdatePrompt, UpdatePromptResponse
 
 class SemanticMapGenerator:
     def __init__(self):
-        rospy.init_node("semantic_map_generator_node")
+        rospy.init_node("semantic_map_generator")
 
         # 初始化参数
         self.current_prompt = rospy.get_param(

@@ -5,25 +5,37 @@ import numpy as np
 import struct
 import threading
 from semantic_map_generator_pkg.msg import SemanticObject
-from sensor_msgs.msg import PointCloud2, PointField
+from sensor_msgs.msg import PointCloud2, PointField, Image
 from std_msgs.msg import Header
+from cv_bridge import CvBridge
+import cv2
 
 
-class LabelBasedDatabase:
+class SemanticMapManager:
     def __init__(self):
-        rospy.init_node("semantic_map_manager")
+        rospy.init_node("semantic_map_manager_node")
 
         # 数据库配置
-        self.db_path = "semantic_map.db"
+        self.db_path = rospy.get_param("~db_path", "semantic_map.db")
         self.lock = threading.Lock()
         self._init_db()
 
         # ROS配置
-        self.sub = rospy.Subscriber(
-            "/semantic_cloud", SemanticObject, self.cloud_callback
+        topic_semantic_object_sub = rospy.get_param(
+            "~topic_semantic_object_sub", "/semantic_object"
         )
-        self.pub = rospy.Publisher("/semantic_map", PointCloud2, queue_size=10)
+        self.sub = rospy.Subscriber(
+            topic_semantic_object_sub, SemanticObject, self.semantic_object_callback
+        )
+        topic_semantic_map_pub = rospy.get_param(
+            "~topic_semantic_map_pub", "/semantic_map"
+        )
+        self.pub = rospy.Publisher(topic_semantic_map_pub, PointCloud2, queue_size=10)
+
         self.timer = rospy.Timer(rospy.Duration(3), self.publish_map)
+        # HACK
+        self.debug_image_pub = rospy.Publisher("/debug_image", Image, queue_size=10)
+        rospy.loginfo("Semantic map manager node initialization complete.")
 
     def _get_conn(self):
         """获取线程安全连接并配置二进制支持"""
@@ -65,7 +77,7 @@ class LabelBasedDatabase:
         """将颜色数据打包为二进制格式"""
         return np.array(data, dtype=np.uint32).tobytes()
 
-    def cloud_callback(self, msg):
+    def semantic_object_callback(self, msg):
         """增加数据有效性检查的写入方法"""
         try:
             # 验证数据长度一致性
@@ -82,6 +94,13 @@ class LabelBasedDatabase:
             except Exception as e:
                 rospy.logerr(f"Data conversion failed: {str(e)}")
                 return
+
+            # 获取图像 msg.image， debug pub
+            bridge = CvBridge()
+            cv_image = bridge.imgmsg_to_cv2(msg.image, desired_encoding="bgr8")
+            self.debug_image_pub.publish(
+                bridge.cv2_to_imgmsg(cv_image, encoding="bgr8")
+            )
 
             with self.lock:
                 conn = self._get_conn()
@@ -231,5 +250,5 @@ class LabelBasedDatabase:
 
 
 if __name__ == "__main__":
-    manager = LabelBasedDatabase()
+    manager = SemanticMapManager()
     rospy.spin()
