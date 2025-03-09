@@ -1,12 +1,16 @@
+# YANBOT_WS
 __pycache__
 *.pyc
 .catkin_workspace
 .vscode/
+.catkin_tools/
 build/
 devel/
 logs/
 temp/
 thirdparties/
+*.db
+*.bag
 
 # third parties ros packages, installed by scripts
 src/Cerebellum/realsense_ros/

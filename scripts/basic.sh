@@ -12,5 +12,9 @@ check_success() {
 WS_DIR=$(pwd)
 # export YANBOT_WS=WS_DIR to bashrc
 echo "export YANBOT_WS=$WS_DIR" >> ~/.bashrc
+# export HF_ENDPOINT="https://hf-mirror.com"
+echo "export HF_ENDPOINT=\"https://hf-mirror.com\"" >> ~/.bashrc
 source ~/.bashrc
+check_success
 cd $YANBOT_WS
+check_success

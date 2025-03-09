@@ -9,7 +9,7 @@ from message_filters import ApproximateTimeSynchronizer, Subscriber
 from tf2_ros import Buffer, TransformListener
 import tf
 import struct
-from semantic_map_generator_pkg.msg import SemanticPointCloud
+from semantic_map_generator_pkg.msg import SemanticObject
 from grounding_sam_ros.client import SamDetector
 from grounding_sam_ros.srv import VitDetection
 from grounding_sam_ros.srv import UpdatePrompt, UpdatePromptResponse
@@ -24,6 +24,7 @@ class SemanticMapGenerator:
             "~default_prompt",
             "keyboard. mouse. cellphone. earphone. laptop. computer. water bottle. plant. keys. door. chair. ",
         )
+        self.downsample_step = rospy.get_param("~downsample_step", 2)
         self.bridge = CvBridge()
         self.latest_image = None
         self.latest_depth = None
@@ -34,11 +35,18 @@ class SemanticMapGenerator:
         self.detector = SamDetector()
 
         # 图像订阅
-        image_sub = Subscriber("/camera/color/image_raw", Image)
-        depth_sub = Subscriber("/camera/aligned_depth_to_color/image_raw", Image)
+        topic_image_sub = rospy.get_param("~topic_image_sub", "/camera/color/image_raw")
+        image_sub = Subscriber(topic_image_sub, Image)
+        topic_depth_sub = rospy.get_param(
+            "~topic_depth_sub", "/camera/aligned_depth_to_color/image_raw"
+        )
+        depth_sub = Subscriber(topic_depth_sub, Image)
 
         # 相机内外参订阅, 深度图对齐
-        camera_info_sub = Subscriber("/camera/color/camera_info", CameraInfo)
+        topic_camera_info_sub = rospy.get_param(
+            "~topic_camera_info_sub", "/camera/color/camera_info"
+        )
+        camera_info_sub = Subscriber(topic_camera_info_sub, CameraInfo)
         self.tf_buffer = Buffer()
         self.tf_listener = TransformListener(self.tf_buffer)
 
@@ -49,22 +57,31 @@ class SemanticMapGenerator:
         ts.registerCallback(self.sync_sub_callback)
 
         # 标注图像发布
-        self.annotated_pub = rospy.Publisher("~annotated", Image, queue_size=1)
-        self.masks_pub = rospy.Publisher("~masks", Image, queue_size=1)
+        topic_annotated_pub = rospy.get_param(
+            "~topic_annotated_pub", "/semantic_annotated"
+        )
+        self.annotated_pub = rospy.Publisher(topic_annotated_pub, Image, queue_size=1)
+        topic_masks_pub = rospy.get_param("~topic_masks_pub", "/semantic_masks")
+        self.masks_pub = rospy.Publisher(topic_masks_pub, Image, queue_size=1)
 
         # 语义地图发布
-        # self.semantic_clouds_memory_global = None
-        self.semantic_cloud_pub = rospy.Publisher(
-            "/semantic_cloud", SemanticPointCloud, queue_size=10
+        topic_semantic_object_pub = rospy.get_param(
+            "~topic_semantic_object_pub", "/semantic_object"
+        )
+        self.semantic_object_pub = rospy.Publisher(
+            topic_semantic_object_pub, SemanticObject, queue_size=10
         )
 
         # Prompt更新服务
-        rospy.Service("~update_prompt", UpdatePrompt, self.prompt_callback)
+        service_update_prompt = rospy.get_param(
+            "~service_update_prompt", "/update_prompt"
+        )
+        rospy.Service(service_update_prompt, UpdatePrompt, self.prompt_callback)
 
         # 定时器
         rospy.Timer(rospy.Duration(1), self.timer_callback)
 
-        rospy.loginfo("Node initialization complete")
+        rospy.loginfo("semantic_map_generator_node initialization complete.")
 
     def sync_sub_callback(self, img_msg, depth_msg, camera_info_msg):
         # 在此统一处理同步后的数据
@@ -238,8 +255,8 @@ class SemanticMapGenerator:
         point_world = T.dot(point_cam)
         return point_world[:3]
 
-    def create_semantic_pointcloud(
-        self, mask, label, score
+    def create_semantic_object(
+        self, mask, label, score, anonated
     ):  # mask=np.array=shape(H,W), label=str='chair', score=float=0.7
         # 针对一张语义掩码生成语义点云
         header = Header()
@@ -253,15 +270,12 @@ class SemanticMapGenerator:
         rgb_list = []
         height, width = mask.shape
 
-        # 降采样步长（根据性能调整）
-        step = 2
-
         if self.current_transform is None:
             rospy.logwarn("No valid TF transform available")
             return None
 
-        for v in range(0, height, step):  # 针对掩码中的每个像素
-            for u in range(0, width, step):
+        for v in range(0, height, self.downsample_step):  # 针对掩码中的每个像素
+            for u in range(0, width, self.downsample_step):
                 if mask[v, u] > 0:
                     z = self.latest_depth[v, u]  # mm
                     point = self.pixel_to_world(u, v, z)  # m, 针对每个世界点
@@ -282,52 +296,21 @@ class SemanticMapGenerator:
                         z_list.append(point[2])
                         rgb_list.append(rgb_value)
 
-        # 创建SemanticPointCloud消息
+        # 创建SemanticObject消息
 
-        cloud = SemanticPointCloud(
+        semantic_obj = SemanticObject(
+            label=label,
             count=points_cnt,
             x=x_list,
             y=y_list,
             z=z_list,
             rgb=rgb_list,
-            label=label,
             confidence=score,
+            image=self.bridge.cv2_to_imgmsg(anonated, "bgr8"),
         )
 
         rospy.loginfo(f"Generated {points_cnt} points for {label}")
-        return cloud
-
-    def merge_clouds(self, cloud1, cloud2):
-        """高性能点云合并（直接字节级合并）"""
-        # 空值处理
-        if cloud1 is None:
-            return cloud2
-        if cloud2 is None:
-            return cloud1
-
-        # 创建新消息头
-        header = Header()
-        header.stamp = rospy.Time.now()
-        header.frame_id = "map"
-
-        # 直接合并字节数据（需确保字段结构相同）
-        if cloud1.fields != cloud2.fields:
-            rospy.logerr("Cannot merge clouds with different fields!")
-            return cloud1
-
-        # 构造合并后的点云
-        merged_cloud = PointCloud2(
-            header=header,
-            height=1,
-            width=cloud1.width + cloud2.width,
-            is_dense=cloud1.is_dense and cloud2.is_dense,
-            is_bigendian=cloud1.is_bigendian,
-            fields=cloud1.fields,
-            point_step=cloud1.point_step,
-            row_step=cloud1.row_step + cloud2.row_step,
-            data=cloud1.data + cloud2.data,  # 直接拼接字节数据
-        )
-        return merged_cloud
+        return semantic_obj
 
     def timer_callback(self, event):
         """定时检测回调"""
@@ -336,14 +319,9 @@ class SemanticMapGenerator:
 
         try:
             # 执行检测
-            # annotated_frame, boxes, masks, labels, scores
             annotated, boxes, masks, labels, scores = self.detector.detect(
                 self.latest_image, self.current_prompt
             )
-
-            # 打印检测结果
-            if len(labels) > 0:
-                rospy.loginfo(f"Detected: {', '.join(labels)}")
 
             # 发布标注结果
             self.annotated_pub.publish(self.bridge.cv2_to_imgmsg(annotated, "bgr8"))
@@ -358,25 +336,10 @@ class SemanticMapGenerator:
         except Exception as e:
             rospy.logerr(f"Processing error: {str(e)}")
 
-        # 生成当前帧合并语义点云
-        # semantic_clouds = None
+        # 生成当前帧语义对象
         for mask, label, score in zip(masks, labels, scores):
-            cloud = self.create_semantic_pointcloud(mask, label, score)
-            # if semantic_clouds is None:
-            #     semantic_clouds = cloud
-            # else:
-            #     semantic_clouds = self.merge_clouds(semantic_clouds, cloud)
-            self.semantic_cloud_pub.publish(cloud)
-
-        # # 更新到全局记忆语义点云
-        # if self.semantic_clouds_memory_global is None:
-        #     self.semantic_clouds_memory_global = semantic_clouds
-        # else:
-        #     self.semantic_clouds_memory_global = self.merge_clouds(
-        #         self.semantic_clouds_memory_global, semantic_clouds
-        #     )
-
-        # self.semantic_cloud_pub.publish(self.semantic_clouds_memory_global)
+            semantic_obj = self.create_semantic_object(mask, label, score, annotated)
+            self.semantic_object_pub.publish(semantic_obj)
 
         self.latest_image = None
         self.latest_depth = None

@@ -4,7 +4,7 @@ import sqlite3
 import numpy as np
 import struct
 import threading
-from semantic_map_generator_pkg.msg import SemanticPointCloud
+from semantic_map_generator_pkg.msg import SemanticObject
 from sensor_msgs.msg import PointCloud2, PointField
 from std_msgs.msg import Header
 
@@ -20,7 +20,7 @@ class LabelBasedDatabase:
 
         # ROS配置
         self.sub = rospy.Subscriber(
-            "/semantic_cloud", SemanticPointCloud, self.cloud_callback
+            "/semantic_cloud", SemanticObject, self.cloud_callback
         )
         self.pub = rospy.Publisher("/semantic_map", PointCloud2, queue_size=10)
         self.timer = rospy.Timer(rospy.Duration(3), self.publish_map)
