@@ -10,3 +10,7 @@ thirdparties/
 
 # third parties ros packages, installed by scripts
 src/Cerebellum/realsense_ros/
+src/Cerebellum/grounded_sam2/
+src/Cerebellum/grounding_sam_ros/
+src/Cerebellum/orb_slam3_ros/
+src/Cerebellum/paddlex/

@@ -8,6 +8,20 @@ check_success() {
     fi
 }
 
+# check whether $YANBOT_WS existed.
+check_ws() {
+    if [ -z "$YANBOT_WS" ]; then
+        echo "YANBOT_WS is not set. Exiting."
+        exit 1
+    else 
+        echo "YANBOT_WS is set to $YANBOT_WS"
+        cd $YANBOT_WS
+    fi
+}
+
+# check and goto YANBOT_WS
+check_ws
+
 # Install required dependencies
 sudo apt install -y libeigen3-dev
 check_success
@@ -48,8 +62,8 @@ check_success
 cd ../../..
 
 # Clone orb_slam3_ros
-mkdir -p src/slam/
-cd src/slam/
+mkdir -p src/Cerebellum/
+cd src/Cerebellum/
 
 if [ -d "orb_slam3_ros" ]; then
     echo "orb_slam3_ros directory already exists. Skipping clone."
