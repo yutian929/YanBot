@@ -1,16 +1,12 @@
 #!/usr/bin/env python
 import rospy
-import sqlite3
 import numpy as np
-import struct
-import threading
 from semantic_map_generator_pkg.msg import SemanticObject
 from semantic_map_generator_pkg.srv import Show, ShowResponse
-from sensor_msgs.msg import PointCloud2, PointField, Image
+from sensor_msgs.msg import PointCloud2, PointField
 from std_msgs.msg import Header
 from cv_bridge import CvBridge
-import cv2
-import os
+from semantic_map_database import SemanticMapDatabase
 
 
 class SemanticMapManager:
@@ -19,13 +15,13 @@ class SemanticMapManager:
 
         # 数据库配置
         self.db_path = rospy.get_param("~db_path", "semantic_map.db")
+        self.renew_db = rospy.get_param("~renew_db", "False")
         self.last_seen_imgs_dir = rospy.get_param(
             "~last_seen_imgs_dir", "last_seen_imgs"
         )
-        if not os.path.exists(self.last_seen_imgs_dir):
-            os.makedirs(self.last_seen_imgs_dir)
-        self.lock = threading.Lock()
-        self._init_db()
+        self.database = SemanticMapDatabase(
+            self.db_path, self.last_seen_imgs_dir, self.renew_db
+        )
 
         # ROS配置
         ## 语义对象订阅
@@ -42,75 +38,100 @@ class SemanticMapManager:
         )
         self.pub = rospy.Publisher(topic_semantic_map_pub, PointCloud2, queue_size=10)
         ## 语义地图显示服务
+        self.semantic_map_frame_id = rospy.get_param("~semantic_map_frame_id", "map")
         service_show_server = rospy.get_param("~service_show", "/semantic_map_show")
         self.service_show = rospy.Service(service_show_server, Show, self.handle_show)
 
         rospy.loginfo("Semantic map manager node initialized complete.")
 
-    def _get_conn(self):
-        """获取线程安全连接并配置二进制支持"""
-        conn = sqlite3.connect(
-            self.db_path,
-            check_same_thread=False,
-            detect_types=sqlite3.PARSE_DECLTYPES,  # 添加类型解析支持
-        )
-        # 注册二进制数据适配器
-        sqlite3.register_converter("BLOB", lambda x: x)
-        conn.execute("PRAGMA journal_mode = WAL")
-        return conn
-
-    def _init_db(self):
-        """初始化数据库表结构"""
-        with self.lock:
-            conn = self._get_conn()
-            try:
-                conn.execute(
-                    """
-                    CREATE TABLE IF NOT EXISTS semantic_objects (
-                        label_id TEXT PRIMARY KEY,
-                        x_data BLOB NOT NULL,
-                        y_data BLOB NOT NULL,
-                        z_data BLOB NOT NULL,
-                        rgb_data BLOB NOT NULL
+    def update_db(
+        self, category, bbox, count, x_list, y_list, z_list, rgb_list, cv_image
+    ):
+        """
+        更新数据库:检测是否有冲突，再选择是合并还是新增
+        params:
+            category: 标签, eg: chair, 不是label_id, eg: chair@1
+            bbox: 包围盒
+            count: 语义对象的点云数量
+            x_bin, y_bin, z_bin, rgb_bin: 二进制数据
+            cv_image: OpenCV图像, last_seen_img
+        """
+        # 首先提取同类别的所有条目
+        # entries = [{"label":str, "bbox": list(float), "time_stamp": str, "x": list(float), "y": list(float), "z": list(float), "rgb": list(int)}, ...]
+        entries = self.database._get_entries_by_category(category)
+        # 如果没有同类别的条目，直接插入
+        if not entries:
+            label = f"{category}@1"
+            self.database._update_entry(label, bbox, x_list, y_list, z_list, rgb_list)
+            self.database._save_last_seen_img(label, cv_image)
+            return
+        else:  # 如果有同类别的条目，用bbox去匹配每一个条目，看是否是同一个语义对象
+            for entry in entries:
+                label_entry = entry["label"]
+                bbox_entry = entry["bbox"]
+                if self.bbox_match(bbox, bbox_entry):
+                    x_merged = x_list + entry["x"]
+                    y_merged = y_list + entry["y"]
+                    z_merged = z_list + entry["z"]
+                    rgb_merged = rgb_list + entry["rgb"]
+                    bbox_merged = self.bbox_merge(bbox, bbox_entry)
+                    self.database._update_entry(
+                        label_entry,
+                        bbox_merged,
+                        x_merged,
+                        y_merged,
+                        z_merged,
+                        rgb_merged,
                     )
-                """
-                )
-                conn.commit()
-            finally:
-                conn.close()
+                    self.database._save_last_seen_img(label_entry, cv_image)
+                    return
+                else:
+                    # 如果不匹配，检查下一个条目
+                    continue
+            # 如果所有条目都不匹配，插入新的语义对象
+            existed_label_ids = [entry["label"].split("@")[1] for entry in entries]
+            new_label_id = int(max(existed_label_ids)) + 1
+            label = f"{category}@{new_label_id}"
+            self.database._update_entry(label, bbox, x_list, y_list, z_list, rgb_list)
+            self.database._save_last_seen_img(label, cv_image)
+            return
 
-    def update_db(self, label, bbox, count, x_bin, y_bin, z_bin, rgb_bin, cv_image):
-        with self.lock:
-            conn = self._get_conn()
-            try:
-                # 使用参数化查询确保数据安全
-                conn.execute(
-                    """
-                    INSERT INTO semantic_objects (label_id, x_data, y_data, z_data, rgb_data)
-                    VALUES (?, ?, ?, ?, ?)
-                    ON CONFLICT(label_id) DO UPDATE SET
-                        x_data = x_data || excluded.x_data,
-                        y_data = y_data || excluded.y_data,
-                        z_data = z_data || excluded.z_data,
-                        rgb_data = rgb_data || excluded.rgb_data
-                """,
-                    (
-                        label,
-                        sqlite3.Binary(x_bin),  # 显式声明二进制类型
-                        sqlite3.Binary(y_bin),
-                        sqlite3.Binary(z_bin),
-                        sqlite3.Binary(rgb_bin),
-                    ),
-                )
-                conn.commit()
-                rospy.loginfo(f"Updated {label} with {count} points")
-            except sqlite3.IntegrityError as e:
-                rospy.logerr(f"Database integrity error: {str(e)}")
-            finally:
-                conn.close()
+    def bbox_merge(self, bbox1, bbox2):
+        """合并两个bbox"""
+        x_min1, y_min1, z_min1, x_max1, y_max1, z_max1 = bbox1
+        x_min2, y_min2, z_min2, x_max2, y_max2, z_max2 = bbox2
+        x_min = min(x_min1, x_min2)
+        y_min = min(y_min1, y_min2)
+        z_min = min(z_min1, z_min2)
+        x_max = max(x_max1, x_max2)
+        y_max = max(y_max1, y_max2)
+        z_max = max(z_max1, z_max2)
+        return [x_min, y_min, z_min, x_max, y_max, z_max]
 
-    def bbox_match(self, bbox, category_bboxs):
-        pass
+    def bbox_match(self, bbox1, bbox2):
+        """检查两个bbox是否匹配, 是否有交集"""
+        x_min1, y_min1, z_min1, x_max1, y_max1, z_max1 = bbox1
+        x_min2, y_min2, z_min2, x_max2, y_max2, z_max2 = bbox2
+        if (
+            x_min1 > x_max2
+            or x_max1 < x_min2
+            or y_min1 > y_max2
+            or y_max1 < y_min2
+            or z_min1 > z_max2
+            or z_max1 < z_min2
+        ):
+            return False
+        return True
+
+    def bbox_calc(self, x_list, y_list, z_list):
+        """计算AABB"""
+        x_min = min(x_list)
+        y_min = min(y_list)
+        z_min = min(z_list)
+        x_max = max(x_list)
+        y_max = max(y_list)
+        z_max = max(z_list)
+        return [x_min, y_min, z_min, x_max, y_max, z_max]
 
     def semantic_object_callback(self, msg):
         """增加数据有效性检查的写入方法"""
@@ -123,131 +144,62 @@ class SemanticMapManager:
                     f"Inconsistent data length, len(x): {len(msg.x)}, len(y): {len(msg.y)}, len(z): {len(msg.z)}, len(rgb): {len(msg.rgb)}, count: {msg.count}"
                 )
                 return
-
-            label = msg.label
-            count = msg.count
-
-            # 获取x, y, z, rgb lists, 转换为二进制
+            # 获取msg
             try:
-                x_bin = np.array(msg.x, dtype=np.float32).tobytes()
-                y_bin = np.array(msg.y, dtype=np.float32).tobytes()
-                z_bin = np.array(msg.z, dtype=np.float32).tobytes()
-                rgb_bin = np.array(msg.rgb, dtype=np.uint32).tobytes()
-            except Exception as e:
-                rospy.logerr(f"Data conversion failed: {str(e)}")
-                return
-
-            # 获取图像 msg.image
-            try:
+                category = msg.category
+                count = msg.count
+                confidence = msg.confidence
+                x_list = list(msg.x)
+                y_list = list(msg.y)
+                z_list = list(msg.z)
+                rgb_list = list(msg.rgb)
                 cv_image = self.bridge.imgmsg_to_cv2(msg.image, desired_encoding="bgr8")
             except Exception as e:
-                rospy.logerr(f"Image conversion failed: {str(e)}")
+                rospy.logerr(f"Message unpack error: {str(e)}")
                 return
-
-            # 计算点云的AABB包围盒
-            bbox = [
-                min(msg.x),
-                min(msg.y),
-                min(msg.z),
-                max(msg.x),
-                max(msg.y),
-                max(msg.z),
-            ]
-
-            # 更新数据库
-            self.update_db(label, bbox, count, x_bin, y_bin, z_bin, rgb_bin, cv_image)
+            # 计算bbox， AABB
+            bbox = self.bbox_calc(x_list, y_list, z_list)
+            # 更新语义对象到数据库
+            self.update_db(
+                category, bbox, count, x_list, y_list, z_list, rgb_list, cv_image
+            )
 
         except Exception as e:
             rospy.logerr(f"Cloud callback error: {str(e)}")
 
-    def _unpack_cloud(self, label):
-        """修复后的解包方法"""
-        with self.lock:
-            conn = self._get_conn()
-            try:
-                # 使用CAST确保二进制类型识别
-                cur = conn.execute(
-                    """
-                    SELECT
-                        CAST(x_data AS BLOB),
-                        CAST(y_data AS BLOB),
-                        CAST(z_data AS BLOB),
-                        CAST(rgb_data AS BLOB)
-                    FROM semantic_objects WHERE label_id = ?
-                """,
-                    (label,),
-                )
-                row = cur.fetchone()
-
-                if row:
-                    # 空数据检查
-                    if not any(row):
-                        return None
-
-                    # 解包时增加错误处理
-                    try:
-                        x = np.frombuffer(row[0], dtype=np.float32)
-                        y = np.frombuffer(row[1], dtype=np.float32)
-                        z = np.frombuffer(row[2], dtype=np.float32)
-                        rgb = np.frombuffer(row[3], dtype=np.uint32)
-                    except ValueError as e:
-                        rospy.logwarn(f"Data unpack error: {str(e)}")
-                        return None
-
-                    # 数据长度校验
-                    min_len = min(x.size, y.size, z.size, rgb.size)
-                    if min_len == 0:
-                        return None
-                    return np.vstack(
-                        [x[:min_len], y[:min_len], z[:min_len], rgb[:min_len]]
-                    ).T
-                return None
-            finally:
-                conn.close()
-
     def handle_show(self, req):
         data = req.data
-        # 对data进行区分,是要全部show还是只要show特定类别的
+        # 对data进行区分,是要show全部，还是只要show特定label，还是show特定category
+        show_type = None
         if data == "all":
-            self.show_all()
-            res = ShowResponse()
-            res.success = True
-            res.message = "All labels shown"
-            return res
+            show_type = "all"
+            self.pub_all()
+        elif "@" in data:
+            show_type = "label"
+            self.pub_label(data)
         else:
-            self.show_label(data)
-            res = ShowResponse()
-            res.success = True
-            res.message = f"Label {data} shown"
-            return res
+            show_type = "category"
+            self.pub_category(data)
+        res = ShowResponse()
+        res.success = True
+        res.message = f"Show {show_type} success"
+        return res
 
-    def show_all(self):
+    def entry_to_points(self, entry: dict) -> list:
+        # entry = {"label":str, "bbox": list(float), "time_stamp": str, "x": list(float), "y": list(float), "z": list(float), "rgb": list(int)}
+        x_list = entry["x"]
+        y_list = entry["y"]
+        z_list = entry["z"]
+        rgb_list = entry["rgb"]
+        points = []
+        for x, y, z, rgb in zip(x_list, y_list, z_list, rgb_list):
+            points.append([x, y, z, rgb])
+        return points
+
+    def pub_semantic_map(self, points: list):
         try:
-            # 获取所有标签
-            with self.lock:
-                conn = self._get_conn()
-                try:
-                    labels = [
-                        row[0]
-                        for row in conn.execute("SELECT label_id FROM semantic_objects")
-                    ]
-                finally:
-                    conn.close()
-
-            # 合并所有点云
-            all_points = []
-            for label in labels:
-                cloud = self._unpack_cloud(label)
-                # 修改判断逻辑
-                if cloud is not None and len(cloud) > 0:
-                    all_points.extend(cloud.tolist())
-
-            if not all_points:
-                rospy.logwarn("No points to publish")
-                return
-            # breakpoint()
             # 转换为ROS消息
-            header = Header(stamp=rospy.Time.now(), frame_id="map")
+            header = Header(stamp=rospy.Time.now(), frame_id=self.semantic_map_frame_id)
             fields = [
                 PointField("x", 0, PointField.FLOAT32, 1),
                 PointField("y", 4, PointField.FLOAT32, 1),
@@ -265,7 +217,7 @@ class SemanticMapManager:
 
             # 转换为结构化数组
             structured_array = np.array(
-                [(p[0], p[1], p[2], p[3]) for p in all_points], dtype=point_dtype
+                [(p[0], p[1], p[2], p[3]) for p in points], dtype=point_dtype
             )
 
             # 直接使用数组的tobytes()方法
@@ -284,10 +236,69 @@ class SemanticMapManager:
             )
 
             self.pub.publish(cloud)
-            rospy.loginfo(f"Published {len(structured_array)} points")
 
         except Exception as e:
             rospy.logerr(f"Publishing failed: {str(e)}")
+
+    def pub_all(self):
+        try:
+            # 获取所有entry
+            # all_entries = [{"label":str, "bbox": list(float), "time_stamp": str, "x": list(float), "y": list(float), "z": list(float), "rgb": list(int)}, ...]
+            all_entries = self.database._get_all_entries()
+            if not all_entries:
+                rospy.logwarn("No entries to publish")
+                return
+            # 从entry中提取x, y, z, rgb, 并合并所有点云
+            all_points = []
+            for entry in all_entries:
+                points = self.entry_to_points(entry)
+                all_points.extend(points)
+            if not all_points:
+                rospy.logwarn("No points to publish")
+                return
+            # 发布点云
+            self.pub_semantic_map(all_points)
+        except Exception as e:
+            rospy.logerr(f"Publish all error: {str(e)}")
+
+    def pub_label(self, label):
+        try:
+            # 获取指定label的entry
+            # entry = {"label":str, "bbox": list(float), "time_stamp": str, "x": list(float), "y": list(float), "z": list(float), "rgb": list(int)}
+            entry = self.database._get_entry_by_label(label)
+            if not entry:
+                rospy.logwarn(f"No entry with label {label}")
+                return
+            # 从entry中提取x, y, z, rgb
+            points = self.entry_to_points(entry)
+            if not points:
+                rospy.logwarn(f"No points to publish for label {label}")
+                return
+            # 发布点云
+            self.pub_semantic_map(points)
+        except Exception as e:
+            rospy.logerr(f"Publish label error: {str(e)}")
+
+    def pub_category(self, category):
+        try:
+            # 获取指定category的所有entry
+            # category_entries = [{"label":str, "bbox": list(float), "time_stamp": str, "x": list(float), "y": list(float), "z": list(float), "rgb": list(int)}, ...]
+            category_entries = self.database._get_entries_by_category(category)
+            if not category_entries:
+                rospy.logwarn(f"No entries with category {category}")
+                return
+            # 从entry中提取x, y, z, rgb, 并合并所有点云
+            all_points = []
+            for entry in category_entries:
+                points = self.entry_to_points(entry)
+                all_points.extend(points)
+            if not all_points:
+                rospy.logwarn(f"No points to publish for category {category}")
+                return
+            # 发布点云
+            self.pub_semantic_map(all_points)
+        except Exception as e:
+            rospy.logerr(f"Publish category error: {str(e)}")
 
 
 if __name__ == "__main__":

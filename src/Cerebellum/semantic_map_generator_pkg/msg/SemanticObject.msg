@@ -1,4 +1,4 @@
-string label  # label of the object, one of the prompt list
+string category  # category of the object, one of the prompt list
 uint32 count  # number of points in the object
 float32[] x  # x coordinates of the points, in map frame
 float32[] y  # y coordinates of the points

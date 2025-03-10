@@ -299,7 +299,7 @@ class SemanticMapGenerator:
         # 创建SemanticObject消息
 
         semantic_obj = SemanticObject(
-            label=label,
+            category=label,
             count=points_cnt,
             x=x_list,
             y=y_list,
