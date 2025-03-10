@@ -9,6 +9,7 @@ devel/
 logs/
 temp/
 thirdparties/
+last_seen_imgs/
 *.db
 *.bag
 
