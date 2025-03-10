@@ -1,6 +1,0 @@
-Cerebellum/arm_dir/arx/follow
-/home/yutian/YanBot/devel/.private/follow/cmake.lock /home/yutian/YanBot/devel/./cmake.lock
-/home/yutian/YanBot/devel/.private/follow/lib/follow/arm_follow_node /home/yutian/YanBot/devel/lib/follow/arm_follow_node
-/home/yutian/YanBot/devel/.private/follow/lib/pkgconfig/follow.pc /home/yutian/YanBot/devel/lib/pkgconfig/follow.pc
-/home/yutian/YanBot/devel/.private/follow/share/follow/cmake/followConfig-version.cmake /home/yutian/YanBot/devel/share/follow/cmake/followConfig-version.cmake
-/home/yutian/YanBot/devel/.private/follow/share/follow/cmake/followConfig.cmake /home/yutian/YanBot/devel/share/follow/cmake/followConfig.cmake

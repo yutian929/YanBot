@@ -1,5 +1,0 @@
-Cerebellum/rtabmap_pkg
-/home/yutian/YanBot/devel/.private/rtabmap_pkg/cmake.lock /home/yutian/YanBot/devel/./cmake.lock
-/home/yutian/YanBot/devel/.private/rtabmap_pkg/lib/pkgconfig/rtabmap_pkg.pc /home/yutian/YanBot/devel/lib/pkgconfig/rtabmap_pkg.pc
-/home/yutian/YanBot/devel/.private/rtabmap_pkg/share/rtabmap_pkg/cmake/rtabmap_pkgConfig-version.cmake /home/yutian/YanBot/devel/share/rtabmap_pkg/cmake/rtabmap_pkgConfig-version.cmake
-/home/yutian/YanBot/devel/.private/rtabmap_pkg/share/rtabmap_pkg/cmake/rtabmap_pkgConfig.cmake /home/yutian/YanBot/devel/share/rtabmap_pkg/cmake/rtabmap_pkgConfig.cmake

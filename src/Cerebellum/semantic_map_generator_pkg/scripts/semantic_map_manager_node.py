@@ -5,10 +5,12 @@ import numpy as np
 import struct
 import threading
 from semantic_map_generator_pkg.msg import SemanticObject
+from semantic_map_generator_pkg.srv import Show, ShowResponse
 from sensor_msgs.msg import PointCloud2, PointField, Image
 from std_msgs.msg import Header
 from cv_bridge import CvBridge
 import cv2
+import os
 
 
 class SemanticMapManager:
@@ -17,25 +19,33 @@ class SemanticMapManager:
 
         # 数据库配置
         self.db_path = rospy.get_param("~db_path", "semantic_map.db")
+        self.last_seen_imgs_dir = rospy.get_param(
+            "~last_seen_imgs_dir", "last_seen_imgs"
+        )
+        if not os.path.exists(self.last_seen_imgs_dir):
+            os.makedirs(self.last_seen_imgs_dir)
         self.lock = threading.Lock()
         self._init_db()
 
         # ROS配置
+        ## 语义对象订阅
         topic_semantic_object_sub = rospy.get_param(
             "~topic_semantic_object_sub", "/semantic_object"
         )
         self.sub = rospy.Subscriber(
             topic_semantic_object_sub, SemanticObject, self.semantic_object_callback
         )
+        self.bridge = CvBridge()
+        ## 语义地图发布器
         topic_semantic_map_pub = rospy.get_param(
             "~topic_semantic_map_pub", "/semantic_map"
         )
         self.pub = rospy.Publisher(topic_semantic_map_pub, PointCloud2, queue_size=10)
+        ## 语义地图显示服务
+        service_show_server = rospy.get_param("~service_show", "/semantic_map_show")
+        self.service_show = rospy.Service(service_show_server, Show, self.handle_show)
 
-        self.timer = rospy.Timer(rospy.Duration(3), self.publish_map)
-        # HACK
-        self.debug_image_pub = rospy.Publisher("/debug_image", Image, queue_size=10)
-        rospy.loginfo("Semantic map manager node initialization complete.")
+        rospy.loginfo("Semantic map manager node initialized complete.")
 
     def _get_conn(self):
         """获取线程安全连接并配置二进制支持"""
@@ -56,8 +66,8 @@ class SemanticMapManager:
             try:
                 conn.execute(
                     """
-                    CREATE TABLE IF NOT EXISTS label_clouds (
-                        label TEXT PRIMARY KEY,
+                    CREATE TABLE IF NOT EXISTS semantic_objects (
+                        label_id TEXT PRIMARY KEY,
                         x_data BLOB NOT NULL,
                         y_data BLOB NOT NULL,
                         z_data BLOB NOT NULL,
@@ -69,23 +79,55 @@ class SemanticMapManager:
             finally:
                 conn.close()
 
-    def _pack_coordinates(self, data):
-        """将坐标数据打包为二进制格式"""
-        return np.array(data, dtype=np.float32).tobytes()
+    def update_db(self, label, bbox, count, x_bin, y_bin, z_bin, rgb_bin, cv_image):
+        with self.lock:
+            conn = self._get_conn()
+            try:
+                # 使用参数化查询确保数据安全
+                conn.execute(
+                    """
+                    INSERT INTO semantic_objects (label_id, x_data, y_data, z_data, rgb_data)
+                    VALUES (?, ?, ?, ?, ?)
+                    ON CONFLICT(label_id) DO UPDATE SET
+                        x_data = x_data || excluded.x_data,
+                        y_data = y_data || excluded.y_data,
+                        z_data = z_data || excluded.z_data,
+                        rgb_data = rgb_data || excluded.rgb_data
+                """,
+                    (
+                        label,
+                        sqlite3.Binary(x_bin),  # 显式声明二进制类型
+                        sqlite3.Binary(y_bin),
+                        sqlite3.Binary(z_bin),
+                        sqlite3.Binary(rgb_bin),
+                    ),
+                )
+                conn.commit()
+                rospy.loginfo(f"Updated {label} with {count} points")
+            except sqlite3.IntegrityError as e:
+                rospy.logerr(f"Database integrity error: {str(e)}")
+            finally:
+                conn.close()
 
-    def _pack_colors(self, data):
-        """将颜色数据打包为二进制格式"""
-        return np.array(data, dtype=np.uint32).tobytes()
+    def bbox_match(self, bbox, category_bboxs):
+        pass
 
     def semantic_object_callback(self, msg):
         """增加数据有效性检查的写入方法"""
         try:
             # 验证数据长度一致性
-            if not (len(msg.x) == len(msg.y) == len(msg.z) == len(msg.rgb)):
-                rospy.logerr("Inconsistent data length")
+            if not (
+                len(msg.x) == len(msg.y) == len(msg.z) == len(msg.rgb) == msg.count
+            ):
+                rospy.logerr(
+                    f"Inconsistent data length, len(x): {len(msg.x)}, len(y): {len(msg.y)}, len(z): {len(msg.z)}, len(rgb): {len(msg.rgb)}, count: {msg.count}"
+                )
                 return
 
-            # 转换为二进制时捕获异常
+            label = msg.label
+            count = msg.count
+
+            # 获取x, y, z, rgb lists, 转换为二进制
             try:
                 x_bin = np.array(msg.x, dtype=np.float32).tobytes()
                 y_bin = np.array(msg.y, dtype=np.float32).tobytes()
@@ -95,41 +137,25 @@ class SemanticMapManager:
                 rospy.logerr(f"Data conversion failed: {str(e)}")
                 return
 
-            # 获取图像 msg.image， debug pub
-            bridge = CvBridge()
-            cv_image = bridge.imgmsg_to_cv2(msg.image, desired_encoding="bgr8")
-            self.debug_image_pub.publish(
-                bridge.cv2_to_imgmsg(cv_image, encoding="bgr8")
-            )
+            # 获取图像 msg.image
+            try:
+                cv_image = self.bridge.imgmsg_to_cv2(msg.image, desired_encoding="bgr8")
+            except Exception as e:
+                rospy.logerr(f"Image conversion failed: {str(e)}")
+                return
 
-            with self.lock:
-                conn = self._get_conn()
-                try:
-                    # 使用参数化查询确保数据安全
-                    conn.execute(
-                        """
-                        INSERT INTO label_clouds (label, x_data, y_data, z_data, rgb_data)
-                        VALUES (?, ?, ?, ?, ?)
-                        ON CONFLICT(label) DO UPDATE SET
-                            x_data = x_data || excluded.x_data,
-                            y_data = y_data || excluded.y_data,
-                            z_data = z_data || excluded.z_data,
-                            rgb_data = rgb_data || excluded.rgb_data
-                    """,
-                        (
-                            msg.label,
-                            sqlite3.Binary(x_bin),  # 显式声明二进制类型
-                            sqlite3.Binary(y_bin),
-                            sqlite3.Binary(z_bin),
-                            sqlite3.Binary(rgb_bin),
-                        ),
-                    )
-                    conn.commit()
-                    rospy.loginfo(f"Updated {msg.label} with {len(msg.x)} points")
-                except sqlite3.IntegrityError as e:
-                    rospy.logerr(f"Database integrity error: {str(e)}")
-                finally:
-                    conn.close()
+            # 计算点云的AABB包围盒
+            bbox = [
+                min(msg.x),
+                min(msg.y),
+                min(msg.z),
+                max(msg.x),
+                max(msg.y),
+                max(msg.z),
+            ]
+
+            # 更新数据库
+            self.update_db(label, bbox, count, x_bin, y_bin, z_bin, rgb_bin, cv_image)
 
         except Exception as e:
             rospy.logerr(f"Cloud callback error: {str(e)}")
@@ -147,7 +173,7 @@ class SemanticMapManager:
                         CAST(y_data AS BLOB),
                         CAST(z_data AS BLOB),
                         CAST(rgb_data AS BLOB)
-                    FROM label_clouds WHERE label = ?
+                    FROM semantic_objects WHERE label_id = ?
                 """,
                     (label,),
                 )
@@ -172,7 +198,6 @@ class SemanticMapManager:
                     min_len = min(x.size, y.size, z.size, rgb.size)
                     if min_len == 0:
                         return None
-
                     return np.vstack(
                         [x[:min_len], y[:min_len], z[:min_len], rgb[:min_len]]
                     ).T
@@ -180,15 +205,31 @@ class SemanticMapManager:
             finally:
                 conn.close()
 
-    def publish_map(self, event=None):
-        """修复后的发布方法"""
+    def handle_show(self, req):
+        data = req.data
+        # 对data进行区分,是要全部show还是只要show特定类别的
+        if data == "all":
+            self.show_all()
+            res = ShowResponse()
+            res.success = True
+            res.message = "All labels shown"
+            return res
+        else:
+            self.show_label(data)
+            res = ShowResponse()
+            res.success = True
+            res.message = f"Label {data} shown"
+            return res
+
+    def show_all(self):
         try:
             # 获取所有标签
             with self.lock:
                 conn = self._get_conn()
                 try:
                     labels = [
-                        row[0] for row in conn.execute("SELECT label FROM label_clouds")
+                        row[0]
+                        for row in conn.execute("SELECT label_id FROM semantic_objects")
                     ]
                 finally:
                     conn.close()

@@ -1,5 +1,0 @@
-Cerebellum/arm_dir/arx_model/R5/R5a
-/home/yutian/YanBot/devel/.private/R5a/cmake.lock /home/yutian/YanBot/devel/./cmake.lock
-/home/yutian/YanBot/devel/.private/R5a/lib/pkgconfig/R5a.pc /home/yutian/YanBot/devel/lib/pkgconfig/R5a.pc
-/home/yutian/YanBot/devel/.private/R5a/share/R5a/cmake/R5aConfig.cmake /home/yutian/YanBot/devel/share/R5a/cmake/R5aConfig.cmake
-/home/yutian/YanBot/devel/.private/R5a/share/R5a/cmake/R5aConfig-version.cmake /home/yutian/YanBot/devel/share/R5a/cmake/R5aConfig-version.cmake

@@ -1,5 +1,0 @@
-Cerebellum/robothor_pkg
-/home/yutian/YanBot/devel/.private/robothor_pkg/cmake.lock /home/yutian/YanBot/devel/./cmake.lock
-/home/yutian/YanBot/devel/.private/robothor_pkg/lib/pkgconfig/robothor_pkg.pc /home/yutian/YanBot/devel/lib/pkgconfig/robothor_pkg.pc
-/home/yutian/YanBot/devel/.private/robothor_pkg/share/robothor_pkg/cmake/robothor_pkgConfig.cmake /home/yutian/YanBot/devel/share/robothor_pkg/cmake/robothor_pkgConfig.cmake
-/home/yutian/YanBot/devel/.private/robothor_pkg/share/robothor_pkg/cmake/robothor_pkgConfig-version.cmake /home/yutian/YanBot/devel/share/robothor_pkg/cmake/robothor_pkgConfig-version.cmake
