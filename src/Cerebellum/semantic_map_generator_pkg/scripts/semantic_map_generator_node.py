@@ -9,6 +9,7 @@ from message_filters import ApproximateTimeSynchronizer, Subscriber
 from tf2_ros import Buffer, TransformListener
 import tf
 import struct
+import threading
 from semantic_map_generator_pkg.msg import SemanticObject
 from grounding_sam_ros.srv import (
     VitDetection,
@@ -29,10 +30,11 @@ class SemanticMapGenerator:
         )
         self.downsample_step = rospy.get_param("~downsample_step", 2)
         self.bridge = CvBridge()
+        self.data_lock = threading.Lock()
         self.latest_image = None
         self.latest_depth = None
         self.camera_info = None
-        self.current_transform = None
+        self.latest_transform = None
 
         # 图像订阅
         topic_image_sub = rospy.get_param("~topic_image_sub", "/camera/color/image_raw")
@@ -94,30 +96,27 @@ class SemanticMapGenerator:
         rospy.loginfo("semantic_map_generator_node initialization complete.")
 
     def sync_sub_callback(self, img_msg, depth_msg, camera_info_msg):
-        # 在此统一处理同步后的数据
+        """同步订阅回调"""
         try:
-            # 查询时间同步的TF变换
-            transform = self.tf_buffer.lookup_transform(
-                "map",
-                "camera_color_optical_frame",  # 使用光学坐标系
-                img_msg.header.stamp,  # 使用图像时间戳
-                rospy.Duration(0.1),
-            )
-            self.current_transform = transform
+            with self.data_lock:
+
+                # 查询时间同步的TF变换
+                transform = self.tf_buffer.lookup_transform(
+                    "map",
+                    "camera_color_optical_frame",  # 使用光学坐标系
+                    img_msg.header.stamp,  # 使用图像时间戳
+                    rospy.Duration(0.1),
+                )
+                self.latest_transform = transform
+                self.latest_image = self.bridge.imgmsg_to_cv2(img_msg, "bgr8")
+                self.latest_depth = self.bridge.imgmsg_to_cv2(depth_msg, "passthrough")
+                self.camera_info = camera_info_msg
         except Exception as e:
-            rospy.logwarn_throttle(1.0, f"TF lookup failed: {str(e)}")
-        try:
-            self.latest_image = self.bridge.imgmsg_to_cv2(img_msg, "bgr8")
-        except Exception as e:
-            rospy.logerr(f"Image conversion failed: {str(e)}")
-        try:
-            self.latest_depth = self.bridge.imgmsg_to_cv2(depth_msg, "passthrough")
-        except Exception as e:
-            rospy.logerr(f"Depth conversion failed: {str(e)}")
-        try:
-            self.camera_info = camera_info_msg
-        except Exception as e:
-            rospy.logerr(f"CameraInfo conversion failed: {str(e)}")
+            rospy.logerr(f"Sync callback error: {str(e)}")
+            self.latest_image = None
+            self.latest_depth = None
+            self.camera_info = None
+            self.latest_transform = None
 
     def prompt_callback(self, req):
         """Prompt更新服务"""
@@ -199,7 +198,8 @@ class SemanticMapGenerator:
         annotated_frame = self.bridge.imgmsg_to_cv2(results.annotated_frame)
         return annotated_frame, boxes, masks, labels, scores
 
-    def apply_mask_overlay(self, image, masks):
+    @staticmethod
+    def apply_mask_overlay(image, masks):
         """将掩码以半透明固定颜色叠加到图像上"""
         overlay = image.copy()
 
@@ -256,9 +256,7 @@ class SemanticMapGenerator:
         # 组合变换矩阵
         return np.dot(T, R)
 
-    def pixel_to_world(
-        self, u, v, z
-    ):  # u,v 是像素坐标, z是深度值 -> x_cam,y_cam,z_cam -> x, y, z in world
+    def pixel_to_world(self, u, v, z, camera_info, latest_transform):
         """将像素坐标转换为世界坐标"""
         # 相机坐标系
 
@@ -268,10 +266,10 @@ class SemanticMapGenerator:
             z = z / 1000.0  # mm -> m
 
         # 从CameraInfo获取内参
-        fx = self.camera_info.K[0]
-        fy = self.camera_info.K[4]
-        cx = self.camera_info.K[2]
-        cy = self.camera_info.K[5]
+        fx = camera_info.K[0]
+        fy = camera_info.K[4]
+        cx = camera_info.K[2]
+        cy = camera_info.K[5]
 
         x_cam = (u - cx) * z / fx
         y_cam = (v - cy) * z / fy
@@ -281,7 +279,7 @@ class SemanticMapGenerator:
         point_cam = np.array([x_cam, y_cam, z_cam, 1.0])
 
         # 从TF变换获取转换矩阵
-        T = self.transform_to_matrix(self.current_transform)
+        T = self.transform_to_matrix(latest_transform)
 
         # 坐标系转换
         point_world = T.dot(point_cam)
@@ -291,8 +289,16 @@ class SemanticMapGenerator:
         return x, y, z, rgb
 
     def create_semantic_object(
-        self, mask, label, score, anonated
-    ):  # mask=np.array=shape(H,W), label=str='chair', score=float=0.7
+        self,
+        mask,
+        label,
+        score,
+        anonated,
+        latest_image,
+        latest_depth,
+        camera_info,
+        latest_transform,
+    ):
         # 针对一张语义掩码生成语义点云
         header = Header()
         header.stamp = rospy.Time.now()
@@ -304,21 +310,21 @@ class SemanticMapGenerator:
         rgb_list = []
         height, width = mask.shape
 
-        if self.current_transform is None:
+        if latest_transform is None:
             rospy.logwarn("No valid TF transform available")
             return None
 
+        h, w = latest_depth.shape
         for v in range(0, height, self.downsample_step):  # 针对掩码中的每个像素
             for u in range(0, width, self.downsample_step):
                 if mask[v, u] > 0:
-                    z = self.latest_depth[v, u]  # mm
-                    point = self.pixel_to_world(u, v, z)  # m, 针对每个世界点
+                    z = latest_depth[v, u]  # mm
+                    point = self.pixel_to_world(
+                        u, v, z, camera_info, latest_transform
+                    )  # m, 针对每个世界点
                     if point is not None:
-                        if (
-                            0 <= v < self.latest_image.shape[0]
-                            and 0 <= u < self.latest_image.shape[1]
-                        ):
-                            b, g, r = self.latest_image[v, u]  # 提取BGR
+                        if 0 <= v < h and 0 <= u < w:
+                            b, g, r = latest_image[v, u]  # 提取BGR
                         else:
                             r, g, b = 255, 255, 255  # 默认白色
                         # 将RGB打包成UINT32（格式：0x00RRGGBB）
@@ -352,13 +358,19 @@ class SemanticMapGenerator:
 
     def timer_callback(self, event):
         """定时检测回调"""
-        if self.latest_image is None:
-            return
+        with self.data_lock:
+            if self.latest_image is None or self.latest_depth is None:
+                return
+            # 深拷贝当前数据
+            image_snapshot = self.latest_image.copy()
+            depth_snapshot = self.latest_depth.copy()
+            tf_snapshot = self.latest_transform
+            camera_info_snapshot = self.camera_info
 
         try:
             # 执行检测
             annotated, boxes, masks, labels, scores = self.semantic_object_detect(
-                self.latest_image, self.current_prompt
+                image_snapshot, self.current_prompt
             )
 
             # 发布标注结果
@@ -372,9 +384,17 @@ class SemanticMapGenerator:
                 # 生成当前帧语义对象
                 for mask, label, score in zip(masks, labels, scores):
                     semantic_obj = self.create_semantic_object(
-                        mask, label, score, annotated
+                        mask,
+                        label,
+                        score,
+                        annotated,
+                        image_snapshot,
+                        depth_snapshot,
+                        camera_info_snapshot,
+                        tf_snapshot,
                     )
-                    self.semantic_object_pub.publish(semantic_obj)
+                    if semantic_obj is not None:
+                        self.semantic_object_pub.publish(semantic_obj)
 
         except rospy.ServiceException as e:
             rospy.logerr(f"Detection failed: {str(e)}")
