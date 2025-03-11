@@ -1,12 +1,14 @@
 #!/usr/bin/env python
 import rospy
 import numpy as np
-from semantic_map_generator_pkg.msg import SemanticObject
-from semantic_map_generator_pkg.srv import Show, ShowResponse
 from sensor_msgs.msg import PointCloud2, PointField
 from std_msgs.msg import Header
+from visualization_msgs.msg import MarkerArray, Marker
+from geometry_msgs.msg import Point
 from cv_bridge import CvBridge
 from semantic_map_database import SemanticMapDatabase
+from semantic_map_generator_pkg.msg import SemanticObject
+from semantic_map_generator_pkg.srv import Show, ShowResponse
 
 
 class SemanticMapManager:
@@ -41,7 +43,17 @@ class SemanticMapManager:
         self.semantic_map_frame_id = rospy.get_param("~semantic_map_frame_id", "map")
         service_show_server = rospy.get_param("~service_show", "/semantic_map_show")
         self.service_show = rospy.Service(service_show_server, Show, self.handle_show)
-
+        topic_bbox_markers = rospy.get_param(
+            "~topic_bbox_markers", "/semantic_map_bbox"
+        )
+        self.bbox_pub = rospy.Publisher(topic_bbox_markers, MarkerArray, queue_size=10)
+        ## BBox可视化参数
+        self.bbox_color = rospy.get_param("~bbox_color", [0.0, 1.0, 0.0])
+        self.bbox_line_width = rospy.get_param("~bbox_line_width", 0.01)
+        self.bbox_alpha = rospy.get_param("~bbox_alpha", 0.5)
+        self.show_bbox = rospy.get_param("~show_bbox", "True")
+        if type(self.show_bbox) is str:
+            self.show_bbox = self.show_bbox.lower() == "true"
         rospy.loginfo("Semantic map manager node initialized complete.")
 
     def update_db(
@@ -182,7 +194,11 @@ class SemanticMapManager:
             self.pub_category(data)
         res = ShowResponse()
         res.success = True
-        res.message = f"Show {show_type} success"
+        res.message = (
+            f"Show {show_type} success " + "with bbox"
+            if self.show_bbox
+            else "without bbox"
+        )
         return res
 
     def entry_to_points(self, entry: dict) -> list:
@@ -261,6 +277,9 @@ class SemanticMapManager:
         except Exception as e:
             rospy.logerr(f"Publish all error: {str(e)}")
 
+        if self.show_bbox:
+            self.pub_bbox_markers(all_entries)
+
     def pub_label(self, label):
         try:
             # 获取指定label的entry
@@ -278,6 +297,9 @@ class SemanticMapManager:
             self.pub_semantic_map(points)
         except Exception as e:
             rospy.logerr(f"Publish label error: {str(e)}")
+
+        if self.show_bbox:
+            self.pub_bbox_markers(entry)
 
     def pub_category(self, category):
         try:
@@ -299,6 +321,101 @@ class SemanticMapManager:
             self.pub_semantic_map(all_points)
         except Exception as e:
             rospy.logerr(f"Publish category error: {str(e)}")
+
+        if self.show_bbox:
+            self.pub_bbox_markers(category_entries)
+
+    def create_bbox_marker(self, bbox, label):
+        """
+        根据AABB创建线框Marker
+        :param bbox: [x_min, y_min, z_min, x_max, y_max, z_max]
+        :param label: 对象标签（用于命名空间）
+        :return: Marker对象
+        """
+        marker = Marker()
+        marker.header.frame_id = self.semantic_map_frame_id
+        marker.header.stamp = rospy.Time.now()
+        marker.ns = label
+        marker.id = 0  # 同一个ns下保持唯一即可
+        marker.type = Marker.LINE_LIST
+        marker.action = Marker.ADD
+        marker.lifetime = rospy.Duration(0)  # 永久显示
+
+        # 设置尺寸和颜色
+        marker.scale.x = self.bbox_line_width
+        marker.color.r = self.bbox_color[0]
+        marker.color.g = self.bbox_color[1]
+        marker.color.b = self.bbox_color[2]
+        marker.color.a = self.bbox_alpha
+
+        # 计算立方体的8个顶点
+        x_min, y_min, z_min, x_max, y_max, z_max = bbox
+        points = [
+            [x_min, y_min, z_min],
+            [x_max, y_min, z_min],
+            [x_max, y_max, z_min],
+            [x_min, y_max, z_min],
+            [x_min, y_min, z_max],
+            [x_max, y_min, z_max],
+            [x_max, y_max, z_max],
+            [x_min, y_max, z_max],
+        ]
+
+        # 定义连接线段的顶点索引对
+        lines = [
+            (0, 1),
+            (1, 2),
+            (2, 3),
+            (3, 0),  # 底面
+            (4, 5),
+            (5, 6),
+            (6, 7),
+            (7, 4),  # 顶面
+            (0, 4),
+            (1, 5),
+            (2, 6),
+            (3, 7),  # 侧面
+        ]
+
+        # 添加线段到Marker
+        for i, j in lines:
+            marker.points.append(Point(*points[i]))
+            marker.points.append(Point(*points[j]))
+
+        return marker
+
+    def pub_bbox_markers(self, entries):
+        """
+        删除旧的并发布新的包围盒Marker
+        :param entries: 语义对象条目列表
+        """
+        # 删除旧的包围盒Marker
+        self.del_all_bbox_markers()
+        # 发布新的包围盒Marker
+        markers = MarkerArray()
+        if type(entries) is not list:
+            entries = [entries]
+        for entry in entries:
+            label = entry["label"]
+            bbox = entry["bbox"]
+            marker = self.create_bbox_marker(bbox, label)
+            markers.markers.append(marker)
+        self.bbox_pub.publish(markers)
+        rospy.loginfo(f"Published {len(markers.markers)} bounding box markers")
+
+    def del_all_bbox_markers(self):
+        """
+        删除所有包围盒Marker
+        """
+        # 创建删除指令
+        delete_marker_array = MarkerArray()
+        delete_marker = Marker()
+        delete_marker.header.frame_id = self.semantic_map_frame_id
+        delete_marker.action = Marker.DELETEALL
+        delete_marker_array.markers.append(delete_marker)
+
+        # 发布删除指令
+        self.bbox_pub.publish(delete_marker_array)
 
 
 if __name__ == "__main__":

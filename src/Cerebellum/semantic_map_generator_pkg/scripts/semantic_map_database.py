@@ -19,11 +19,9 @@ class SemanticMapDatabase:
         if not os.path.exists(self.last_seen_imgs_dir):
             os.makedirs(self.last_seen_imgs_dir)
         if type(renew_db) is str:
-            renew_db = True if renew_db.lower() in ("true", "True") else False
-        if renew_db and os.path.exists(self.db_path):
-            os.remove(self.db_path)
-            for img_file in os.listdir(self.last_seen_imgs_dir):
-                os.remove(os.path.join(self.last_seen_imgs_dir, img_file))
+            renew_db = renew_db.lower() == "true"
+        if renew_db:
+            self._renew_db()
         self.lock = threading.Lock()
         self._init_db()
 
@@ -36,6 +34,13 @@ class SemanticMapDatabase:
         sqlite3.register_converter("BLOB", lambda x: x)
         conn.execute("PRAGMA journal_mode = WAL")
         return conn
+
+    def _renew_db(self):
+        """删除数据库文件和最近观测图像目录"""
+        if os.path.exists(self.db_path):
+            os.remove(self.db_path)
+        for img_file in os.listdir(self.last_seen_imgs_dir):
+            os.remove(os.path.join(self.last_seen_imgs_dir, img_file))
 
     def _init_db(self):
         """
