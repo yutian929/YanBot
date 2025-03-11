@@ -3,16 +3,19 @@ import rospy
 import cv2
 import numpy as np
 from cv_bridge import CvBridge
-from sensor_msgs.msg import Image, CameraInfo, PointCloud2, PointField
+from sensor_msgs.msg import Image, CameraInfo
 from std_msgs.msg import Header
 from message_filters import ApproximateTimeSynchronizer, Subscriber
 from tf2_ros import Buffer, TransformListener
 import tf
 import struct
 from semantic_map_generator_pkg.msg import SemanticObject
-from grounding_sam_ros.client import SamDetector
-from grounding_sam_ros.srv import VitDetection
-from grounding_sam_ros.srv import UpdatePrompt, UpdatePromptResponse
+from grounding_sam_ros.srv import (
+    VitDetection,
+    VitDetectionResponse,
+    UpdatePrompt,
+    UpdatePromptResponse,
+)
 
 
 class SemanticMapGenerator:
@@ -30,9 +33,6 @@ class SemanticMapGenerator:
         self.latest_depth = None
         self.camera_info = None
         self.current_transform = None
-
-        # 初始化检测器
-        self.detector = SamDetector()
 
         # 图像订阅
         topic_image_sub = rospy.get_param("~topic_image_sub", "/camera/color/image_raw")
@@ -63,6 +63,16 @@ class SemanticMapGenerator:
         self.annotated_pub = rospy.Publisher(topic_annotated_pub, Image, queue_size=1)
         topic_masks_pub = rospy.get_param("~topic_masks_pub", "/semantic_masks")
         self.masks_pub = rospy.Publisher(topic_masks_pub, Image, queue_size=1)
+
+        # 初始化语义对象检测器, 客户端
+        service_semantic_object_detector = rospy.get_param(
+            "~service_semantic_object_detector", "/vit_detection"
+        )
+        rospy.wait_for_service(service_semantic_object_detector)
+        self.detector = rospy.ServiceProxy(
+            service_semantic_object_detector, VitDetection
+        )
+        rospy.loginfo("Semantic object detector service is ready")
 
         # 语义地图发布
         topic_semantic_object_pub = rospy.get_param(
@@ -167,6 +177,28 @@ class SemanticMapGenerator:
                 success=False, message=f"Critical error: {str(e)}"
             )
 
+    def maskmsg_to_array(self, mask_msg, mask_shape):
+        masks = np.array(mask_msg.data).reshape(
+            (mask_msg.layout.dim[0].size, mask_msg.layout.dim[0].stride)
+        )
+        masks = masks.reshape((masks.shape[0], mask_shape[0], mask_shape[1])).astype(
+            np.uint8
+        )
+        return masks
+
+    def semantic_object_detect(self, rgb, prompt):
+        rgb_msg = self.bridge.cv2_to_imgmsg(np.array(rgb))
+        results = self.detector(rgb_msg, prompt)
+        labels = results.labels
+        scores = results.scores
+        boxes = results.boxes
+        masks = self.maskmsg_to_array(results.segmasks, rgb.shape[:2])
+        boxes = np.array(results.boxes.data).reshape(
+            (results.boxes.layout.dim[0].size, results.boxes.layout.dim[0].stride)
+        )
+        annotated_frame = self.bridge.imgmsg_to_cv2(results.annotated_frame)
+        return annotated_frame, boxes, masks, labels, scores
+
     def apply_mask_overlay(self, image, masks):
         """将掩码以半透明固定颜色叠加到图像上"""
         overlay = image.copy()
@@ -255,6 +287,9 @@ class SemanticMapGenerator:
         point_world = T.dot(point_cam)
         return point_world[:3]
 
+    def point_clouds_filter(self, x: list, y: list, z: list, rgb: list):
+        return x, y, z, rgb
+
     def create_semantic_object(
         self, mask, label, score, anonated
     ):  # mask=np.array=shape(H,W), label=str='chair', score=float=0.7
@@ -263,7 +298,6 @@ class SemanticMapGenerator:
         header.stamp = rospy.Time.now()
         header.frame_id = "map"
 
-        points_cnt = 0
         x_list = []
         y_list = []
         z_list = []
@@ -280,7 +314,6 @@ class SemanticMapGenerator:
                     z = self.latest_depth[v, u]  # mm
                     point = self.pixel_to_world(u, v, z)  # m, 针对每个世界点
                     if point is not None:
-                        points_cnt += 1
                         if (
                             0 <= v < self.latest_image.shape[0]
                             and 0 <= u < self.latest_image.shape[1]
@@ -296,8 +329,13 @@ class SemanticMapGenerator:
                         z_list.append(point[2])
                         rgb_list.append(rgb_value)
 
-        # 创建SemanticObject消息
+        # 点云聚类与剔除优化
+        x_list, y_list, z_list, rgb_list = self.point_clouds_filter(
+            x_list, y_list, z_list, rgb_list
+        )
+        points_cnt = len(x_list)
 
+        # 创建SemanticObject消息
         semantic_obj = SemanticObject(
             category=label,
             count=points_cnt,
@@ -319,7 +357,7 @@ class SemanticMapGenerator:
 
         try:
             # 执行检测
-            annotated, boxes, masks, labels, scores = self.detector.detect(
+            annotated, boxes, masks, labels, scores = self.semantic_object_detect(
                 self.latest_image, self.current_prompt
             )
 
@@ -331,15 +369,17 @@ class SemanticMapGenerator:
                 mask_overlay = self.apply_mask_overlay(annotated, masks)
                 self.masks_pub.publish(self.bridge.cv2_to_imgmsg(mask_overlay, "bgr8"))
 
+                # 生成当前帧语义对象
+                for mask, label, score in zip(masks, labels, scores):
+                    semantic_obj = self.create_semantic_object(
+                        mask, label, score, annotated
+                    )
+                    self.semantic_object_pub.publish(semantic_obj)
+
         except rospy.ServiceException as e:
             rospy.logerr(f"Detection failed: {str(e)}")
         except Exception as e:
             rospy.logerr(f"Processing error: {str(e)}")
-
-        # 生成当前帧语义对象
-        for mask, label, score in zip(masks, labels, scores):
-            semantic_obj = self.create_semantic_object(mask, label, score, annotated)
-            self.semantic_object_pub.publish(semantic_obj)
 
         self.latest_image = None
         self.latest_depth = None

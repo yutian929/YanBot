@@ -41,6 +41,9 @@ class SemanticMapDatabase:
             os.remove(self.db_path)
         for img_file in os.listdir(self.last_seen_imgs_dir):
             os.remove(os.path.join(self.last_seen_imgs_dir, img_file))
+        print(
+            f"Database in {self.db_path} and last seen images in {self.last_seen_imgs_dir} have been deleted."
+        )
 
     def _init_db(self):
         """

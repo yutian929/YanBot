@@ -54,6 +54,7 @@ class SemanticMapManager:
         self.show_bbox = rospy.get_param("~show_bbox", "True")
         if type(self.show_bbox) is str:
             self.show_bbox = self.show_bbox.lower() == "true"
+
         rospy.loginfo("Semantic map manager node initialized complete.")
 
     def update_db(
@@ -148,7 +149,10 @@ class SemanticMapManager:
     def semantic_object_callback(self, msg):
         """增加数据有效性检查的写入方法"""
         try:
-            # 验证数据长度一致性
+            # 验证数据长度是否有效, 以及一致性
+            if msg.count == 0:
+                rospy.logwarn(f"Received Empty data for {msg.category}")
+                return
             if not (
                 len(msg.x) == len(msg.y) == len(msg.z) == len(msg.rgb) == msg.count
             ):
