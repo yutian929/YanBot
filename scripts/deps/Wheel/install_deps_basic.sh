@@ -25,35 +25,29 @@ check_success() {
     fi
 }
 # Check if the YanBot in ENV
-check_workingspace() {
-    echo "[INFO] 检查工作空间变量是否配置"
+check_ws() {
+    echo "[INFO] Checking environment variables YANBOT_WS"
     if [ -z "$YANBOT_WS" ]; then
-        echo_warn "没有找到关于YanBot的工作空间,请先配置环境变量"
+        echo_fail "Environment variable YANBOT_WS not set, Recheck your configuration"
         exit 1
     else
-        echo_info "找到YanBot工作空间: $YANBOT_WS"
+        echo_info "YANBOT_WS Path: $YANBOT_WS"
         cd $YANBOT_WS
     fi
 }
 # Check if sudo/root
 check_sudo() {
     if [ "$EUID" -ne 0 ]; then
-        echo_fail "请使用sudo或root权限运行此脚本"
+        echo_fail "Please run with sudo"
         exit 1
     fi
 }
 
 # Now Main Process
 
-
-
-
-check_workingspace
+check_ws
 
 rosdep install --from-paths src --ignore-src -r -y
-check_success
-
-sudo apt install -y git
 check_success
 
 sudo apt install -y libeigen3-dev
@@ -68,6 +62,7 @@ else
     echo "/usr/include/Eigen already exists, skipping copy"
 fi
 
+# Some deps to install
 sudo apt-get install libpcap-dev -y
 check_success
 
@@ -80,30 +75,21 @@ check_success
 sudo apt install libcjson1 libcjson-dev
 check_success
 
-echo "如果要编译bodyreader,需要下载ASTRA SDK,并且安装,然后将2个lib添加至bashrc变量,具体见/bodyreader/CMakeLists.txt"
+
+ws_path=$YANBOT_WS
+echo_info "Installing AstraSDK, SDK should be in $ws_path/src/thirdparties/AstraSDK"
 cd src/thirdparties/AstraSDK/
 sudo bash install/install.sh
 check_success
-echo "export ASTRA_SDK_INCLUDE=$SDK_PATH/include" >> ~/.bashrc
-echo "export ASTRA_SDK_LIB=$SDK_PATH/lib" >> ~/.bashrc
-check_success
+# Assuming ASTRA_SDK is in the workspace
+echo "export ASTRA_SDK_INCLUDE=$ws_path/src/thirdparties/AstraSDK/include" >> ~/.bashrc
+echo "export ASTRA_SDK_LIB=$ws_path/src/thirdparties/AstraSDK/lib" >> ~/.bashrc
 source ~/.bashrc
 check_success
 cd ../../
 
-echo_info "安装catkin_tools用于工作空间编译"
-sudo apt install python3-catkin-tools -y
-check_success
-
-echo_info "安装rosdep"
-sudo apt install python3-rosdep -y
-check_success
-
-
-# catkin_make --pkg lslidar_msgs lslidar_driver lslidar # 先编译lslidar的包
-# check_success
-
-echo_info "安装libuvc"
+# Install libuvc
+echo_info "Compiling libuvc"
 mkdir temp
 cd temp
 git clone https://github.com/ktossell/libuvc
@@ -118,18 +104,7 @@ cd ../../
 rm -rf temp
 check_success
 
-# Try to Compile
-echo_info "依赖安装完成，尝试编译工作空间"
-cd $YANBOT_WS
-rm -rf build devel .catkin_tools
-
-ws_path=$YANBOT_WS
-export ASTRA_SDK_INCLUDE=$ws_path/src/thirdparties/AstraSDK/include
-export ASTRA_SDK_LIB=$ws_path/src/thirdparties/AstraSDK/lib
-catkin build
-check_success
-
-echo_info "shell任务完成"
+echo_info "All Shell Tasks Done"
 
 # catkin_make
 # check_success
