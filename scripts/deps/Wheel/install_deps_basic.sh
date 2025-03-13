@@ -1,21 +1,5 @@
 #!/bin/bash
 
-# Public function
-logfile="dep_install.log"
-
-function echo_fail(){
-    echo -e "\t[Error] $@" >> "${logfile}"
-    echo -e "\e[31m[Error] $@\e[0m"
-}
-function echo_warn(){
-    echo -e "\t[Warn] $@" >> "${logfile}"
-    echo -e "\e[33m[Warn] $@\e[0m"
-}
-function echo_info(){
-    echo -e "\t[Info] $@" >> "${logfile}"
-    echo -e "\e[32m[Info] $@\e[0m"
-}
-
 
 # Function to check command success
 check_success() {
@@ -26,19 +10,19 @@ check_success() {
 }
 # Check if the YanBot in ENV
 check_ws() {
-    echo "[INFO] Checking environment variables YANBOT_WS"
     if [ -z "$YANBOT_WS" ]; then
-        echo_fail "Environment variable YANBOT_WS not set, Recheck your configuration"
+        echo "YANBOT_WS is not set. Exiting."
         exit 1
-    else
-        echo_info "YANBOT_WS Path: $YANBOT_WS"
+    else 
+        echo "YANBOT_WS is set to $YANBOT_WS"
         cd $YANBOT_WS
     fi
 }
+
 # Check if sudo/root
 check_sudo() {
     if [ "$EUID" -ne 0 ]; then
-        echo_fail "Please run with sudo"
+        echo "Please run with sudo"
         exit 1
     fi
 }
@@ -59,6 +43,7 @@ if [ ! -d "/usr/include/Eigen" ]; then
     sudo cp -rf /usr/include/eigen3/Eigen /usr/include/Eigen -R
     check_success
 else
+    sudo cp -rf /usr/include/eigen3/Eigen /usr/include/Eigen -R
     echo "/usr/include/Eigen already exists, skipping copy"
 fi
 
@@ -77,34 +62,36 @@ check_success
 
 
 ws_path=$YANBOT_WS
-echo_info "Installing AstraSDK, SDK should be in $ws_path/src/thirdparties/AstraSDK"
-cd src/thirdparties/AstraSDK/
+echo "Installing AstraSDK, SDK should be in $ws_path/thirdparties/AstraSDK"
+cd thirdparties/AstraSDK/
 sudo bash install/install.sh
 check_success
 # Assuming ASTRA_SDK is in the workspace
-echo "export ASTRA_SDK_INCLUDE=$ws_path/src/thirdparties/AstraSDK/include" >> ~/.bashrc
-echo "export ASTRA_SDK_LIB=$ws_path/src/thirdparties/AstraSDK/lib" >> ~/.bashrc
+echo "export ASTRA_SDK_INCLUDE=$ws_path/thirdparties/AstraSDK/include" >> ~/.bashrc
+echo "export ASTRA_SDK_LIB=$ws_path/thirdparties/AstraSDK/lib" >> ~/.bashrc
 source ~/.bashrc
 check_success
-cd ../../
+cd ../
 
 # Install libuvc
-echo_info "Compiling libuvc"
-mkdir temp
-cd temp
-git clone https://github.com/ktossell/libuvc
+echo "Compiling libuvc"
+if [ -d "libuvc" ]; then
+    echo "libuvc directory already exists. Skipping clone."
+else
+    echo "Cloning libuvc..."
+    git clone https://github.com/ktossell/libuvc libuvc
+    check_success
+fi
 cd libuvc
+if [ -d "build" ]; then
+    echo "Removing existing librealsense build directory..."
+    rm -rf build
+fi
 mkdir build
 cd build
 cmake ..
 make
 sudo make install
 check_success
-cd ../../
-rm -rf temp
-check_success
 
-echo_info "All Shell Tasks Done"
-
-# catkin_make
-# check_success
+echo "All Shell Tasks Done"
