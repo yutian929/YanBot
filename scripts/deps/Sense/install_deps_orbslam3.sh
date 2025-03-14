@@ -40,7 +40,7 @@ if [ -d "Pangolin" ]; then
     echo "Pangolin directory already exists. Skipping clone."
 else
     echo "Cloning Pangolin..."
-    git clone https://github.com/yutian929/YanBot-Sense_Pangolin.git Pangolin
+    git clone https://github.com/yutian929/YanBot-Pangolin.git Pangolin
     check_success
 fi
 
@@ -69,7 +69,7 @@ if [ -d "orb_slam3_ros" ]; then
     echo "orb_slam3_ros directory already exists. Skipping clone."
 else
     echo "Cloning orb_slam3_ros..."
-    git clone https://github.com/yutian929/YanBot-Sense_orb_slam3_ros.git orb_slam3_ros
+    git clone https://github.com/yutian929/YanBot-orb_slam3_ros.git orb_slam3_ros
     check_success
 fi
 cd ../..

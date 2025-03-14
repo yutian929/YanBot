@@ -34,6 +34,12 @@ check_ws
 rosdep install --from-paths src --ignore-src -r -y
 check_success
 
+sudo apt install udev
+check_success
+
+sudo apt install can-utils
+check_success
+
 sudo apt install -y libeigen3-dev
 check_success
 
@@ -58,6 +64,9 @@ sudo pip3 install --upgrade rosdep
 check_success
 
 sudo apt install libcjson1 libcjson-dev
+check_success
+
+sudo apt install ros-noetic-robot-pose-ekf
 check_success
 
 

@@ -24,7 +24,7 @@ if [ -d "nltk_data" ]; then
     echo "nltk_data directory already exists. Skipping clone."
 else
     echo "Cloning nltk_data..."
-    git clone https://github.com/yutian929/YanBot-Interact_nltk_data.git nltk_data
+    git clone https://github.com/yutian929/YanBot-nltk_data.git nltk_data
     check_success
 fi
 

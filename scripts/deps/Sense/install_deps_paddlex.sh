@@ -42,7 +42,7 @@ if [ -d "paddlex" ]; then
     echo "paddlex directory already exists. Skipping clone."
 else
     echo "Cloning paddlex..."
-    git clone https://github.com/yutian929/YanBot-Sense_PaddleX.git paddlex
+    git clone https://github.com/yutian929/YanBot-PaddleX.git paddlex
     check_success
 fi
 

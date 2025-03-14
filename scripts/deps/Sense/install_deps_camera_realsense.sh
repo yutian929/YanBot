@@ -32,7 +32,7 @@ if [ -d "librealsense" ]; then
     echo "librealsense directory already exists. Skipping clone."
 else
     echo "Cloning librealsense..."
-    git clone https://github.com/yutian929/YanBot-Sense_librealsense.git librealsense
+    git clone https://github.com/yutian929/YanBot-librealsense.git librealsense
     check_success
 fi
 
@@ -59,7 +59,7 @@ if [ -d "realsense_ros" ]; then
     echo "realsense_ros directory already exists. Skipping clone."
 else
     echo "Cloning realsense_ros..."
-    git clone https://github.com/yutian929/YanBot-Sense_realsense_ros.git realsense_ros
+    git clone https://github.com/yutian929/YanBot-realsense_ros.git realsense_ros
     check_success
 fi
 cd ../../

@@ -30,7 +30,7 @@ if [ -d "grounded_sam2" ]; then
     echo "grounded_sam2 directory already exists. Skipping clone."
 else
     echo "Cloning grounded_sam2..."
-    git clone https://github.com/yutian929/YanBot-Sense_Grounded_SAM_2.git grounded_sam2
+    git clone https://github.com/yutian929/YanBot-Grounded_SAM_2.git grounded_sam2
     check_success
 fi
 
