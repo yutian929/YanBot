@@ -1,0 +1,27 @@
+<launch>
+  <!-- 开启摄像头 -->
+  <include file="$(find turn_on_wheeltec_robot)/launch/wheeltec_camera.launch">
+    <arg name="if_usb_cam" value="true"/>
+  </include>
+
+  <!-- <node name="image_transport" pkg="image_transport" type="republish" args="raw in:=/camera/rgb/image_raw compressed out:=/camera/rgb/image_raw"/> -->
+
+  <!-- 订阅RGB图像话题，并重命名为/image_raw/compressed发布，为APP图传功能提供话题 -->
+ <node name="usb_cam_remap" pkg="usb_cam" type="app_read.py" output="screen" >
+    <remap from="/camera/rgb/image_raw/compressed" to="/camera/rgb/image_raw/compressed"/>
+    <remap from="/usb_cam/image_raw/compressed" to="/image_raw/compressed"/>
+  </node> 
+
+  <!-- usb_cam启动rgb相机 -->
+<!--   <node name="usb_cam" pkg="usb_cam" type="usb_cam_node" output="screen" >
+    <param name="video_device" value="/dev/video0" />
+    <param name="image_width" value="640" />
+    <param name="image_height" value="480" />
+    <param name="pixel_format" value="yuyv" />
+    <param name="camera_frame_id" value="usb_cam" />
+    <param name="io_method" value="mmap"/>
+    <remap from="/usb_cam/image_raw/compressed" to="/image_raw/compressed"/>
+  </node> -->
+  
+</launch>
+
