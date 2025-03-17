@@ -1,0 +1,209 @@
+1.键盘控制
+//需要先开启初始化节点（仅在单独开启键盘控制时需要开启 运行功能时已包括初始化节点 不需要重复开启）
+roslaunch turn_on_wheeltec_robot turn_on_wheeltec_robot.launch
+//开启键盘控制节点
+roslaunch wheeltec_robot_rc keyboard_teleop.launch
+
+2.巡线(雷达避障)
+roslaunch simple_follower line_follower.launch 
+
+3.雷达跟随。
+roslaunch simple_follower laser_follower.launch 
+
+4.视觉跟踪。
+roslaunch simple_follower visual_follower.launch 
+
+5.2D建图、2D导航。
+roslaunch turn_on_wheeltec_robot mapping.launch 
+roslaunch turn_on_wheeltec_robot navigation.launch 
+一键保存地图(WHEELTEC.pgm、WHEELTEC.yaml)
+roslaunch turn_on_wheeltec_robot map_saver.launch 
+
+6.3D建图、3D导航。
+roslaunch turn_on_wheeltec_robot 3d_mapping.launch 
+roslaunch turn_on_wheeltec_robot 3d_navigation.launch 
+
+7.纯视觉建图导航
+roslaunch turn_on_wheeltec_robot pure3d_mapping.launch
+roslaunch turn_on_wheeltec_robot pure3d_navigation.launch
+
+8.WHEELTEC APP图传、建图与导航
+//用户手机连接小车wifi，打开APP即可使用。该APP可控制小车移动、保存地图、查看摄像头画面，详见WHEELTEC APP功能教程
+//图传，需要手动打开RGB摄像头节点：roslaunch usb_cam usb_cam-test.launch
+APP端可以实时观看到摄像头画面
+//建图，需要手动打开建图节点：roslaunch turn_on_wheeltec_robot mapping.launch 
+APP端可以查看建图效果并保存，同时可以控制小车移动
+//导航，需要手动打开导航节点：roslaunch turn_on_wheeltec_robot navigation.launch 
+APP端可以控制小车移动
+
+
+9.WEB浏览器显示摄像头
+主机：roslaunch usb_cam usb_cam-test.launch
+          rosrun web_video_server web_video_server
+主机网页查看：http://localhost:8080/ (发出热点的为主机)
+客户机网页查看：http://192.168.0.100:8080 (连接热点的为客户机)
+【注】建议使用谷歌浏览器，经测试360极速浏览器、IE浏览器无法打开图像
+
+10.自主建图 详见自主建图功能教程
+//启动rrt_slam.launch文件：
+roslaunch turn_on_wheeltec_robot rrt_slam.launch
+//打开rviz，点击左下方“add”→“by topic”增加配置插件：
+clicked_point	显示随机数的范围点和起点
+detected_points	检测到的边界点
+frontiers		滤波器接收到的边界点，数据同上
+centroids		滤波后的有效边界点
+global_detector_shapes	全局树
+local_detector_shapes	本地树
+//用rviz的publish point工具，按顺时针或者逆时针设置4个生长树的边界点，以及一个生长树起点（起点尽量靠近机器人起点），设置完成后机器人便依据生长树去探索地图。
+
+   
+11.2.4G无线手柄控制ROS端
+//需要先开启初始化节点
+roslaunch turn_on_wheeltec_robot turn_on_wheeltec_robot.launch
+//开启无线手柄控制节点
+roslaunch wheeltec_joy joy_control.launch
+
+
+12.ROS Qt功能（虚拟机端运行）
+//运行sh文件设置ssh无密码登录并开启小车端roscore
+bash initssh.sh
+//待sh文件运行完毕后，运行launch文件启动qt功能
+roslaunch qt_ros_test qt_ros_test.launch
+
+
+13.aruco码识别与跟随
+//识别
+roslaunch turn_on_wheeltec_robot aruco.launch
+①打开https://chev.me/arucogen/
+②Dictionary 选择Original ArUco
+③打印二维码
+④根据打印出的二维码修改turn_on_wheeltec_robot/launch/aruco.launch中的markerId以及markerSize(单位：米)
+⑤识别结果：打开rqt_image_view，话题选择/aruco_single/result查看
+	 或 rostopic echo /aruco_single/pose查看二维码相对相机的位姿信息
+//跟随
+roslaunch simple_follower ar_follower.launch
+注意：aruco码跟随功能与识别功能一样需要提前设定id与size，且只能跟随所设定id的aruco码，在aruco码移出视线后，小车仍会以原速度进行运动，需手动关闭节点停止跟随
+	  
+	  
+14.KCF跟随
+roslaunch kcf_track kcf_tracker.launch
+
+
+15.语音控制
+//开启底层、导航、雷达扫描节点
+roslaunch xf_mic_asr_offline_circle base.launch
+//开启麦克风阵列初始化节点
+roslaunch xf_mic_asr_offline_circle mic_init.launch
+
+
+16.ORB视觉建图功能
+//开启ORB节点
+roslaunch turn_on_wheeltec_robot orb_slam.launch
+//开启键盘控制节点
+roslaunch wheeltec_robot_rc keyboard_teleop.launch
+//开启rviz可视化工具
+rviz
+（rviz配置文件路径：orb_slam2_ros-master/ros/config/rviz_config.rviz）
+
+
+17.TensorFlow与ROS的结合使用(Jetson系列需进入虚拟环境运行，具体操作见功能使用手册)
+//TensorFlow物体识别
+roslaunch ros_tensorflow ros_tensorflow_classify.launch
+//TensorFlow目标检测
+roslaunch ros_tensorflow ros_tensorflow_detect.launch
+运行rqt_image_view，选择result_ripe话题查看
+//TensorFlow手写数字识别
+roslaunch ros_tensorflow ros_tensorflow_mnist.launch
+
+
+18.多机编队
+//使用多机编队前准备：
+//主机从机连接同一网络并正确设置每个小车的单机通信环境（ROS_MASTER_URI，ROS_HOSTNAME均为小车本地ip）  
+//主车提前建立 2D 地图并保存下来
+//以下命令中ip地址为从车ip地址，逐一修改为自己从车ip并在主车命令端中运行将主车地图复制给从车
+scp -r /home/wheeltec/wheeltec_robot/src/turn_on_wheeltec_robot/map/WHEELTEC*
+wheeltec@192.168.0.101:/home/wheeltec/wheeltec_robot/src/turn_on_wheeltec_robot
+/map/
+//主车放在建图起点，从车放在初始化位置（默认从车编队位置）附近  
+
+5车编队以下两种执行命令方式皆可，6车编队以上请使用执行命令方式二
+方式一：
+//第一步：在主车端中运行多机编队导航程序
+roslaunch wheeltec_multi navigation.launch
+//第二步：在从机端中分别运行编队程序 
+roslaunch wheeltec_multi wheeltec_slave.launch
+//第三步：在主车端打开多机编队键盘控制节点控制主车运动
+roslaunch wheeltec_multi keyboard_teleop.launch 
+
+方式二：
+//第一步：修改主车wheeltec_multi功能包下的cmd.py文件，将你当前所要操作所有编队小车的ip地址写进ip变量里面
+//第二步：主车命令端中先进入wheeltec_multi目录，在该目录下执行 cmd.py 文件
+python cmd.py
+//第三步：根据cmd.py命令提示，先按回车键确认，然后输入0，再输入open，开启所有小车编队功能
+//第四步：在主车端打开多机编队键盘控制节点控制主车运动
+roslaunch wheeltec_multi keyboard_teleop.launch
+
+19.人体骨架跟随与姿态控制（仅Jetson系列主控）
+//姿态控制
+roslaunch bodyreader bodyinteraction.launch
+//人体骨架跟随
+roslaunch bodyreader bodyfollow.launch
+//结合姿态控制与跟随——启动默认是姿态控制模式，双手胸前交叉是切换模式
+roslaunch bodyreader final.launch
+
+20.全覆盖路径规划功能（不推荐阿克曼小车，需要提前建图，并切换DWA导航方式）
+第一步：运行命令
+roslaunch ipa_room_exploration ipa_room_exploration.launch
+第二步：运行rviz，用rviz的publish point工具，顺时针或逆时针点四个点
+rviz
+
+------------------------------------------
+其它常用命令
+
+递归修改当前(终端)文件夹下文件修改时间：
+find ./* -exec touch {} \;
+
+在工作空间下运行，安装ROS功能包全部依赖（镜像中已配置rosdep）：
+rosdep install --from-paths src --ignore-src -r -y
+
+修改系统时间：
+sudo date -s "2022-06-15 09:00:00"
+
+指定功能包编译：
+catkin_make -DCATKIN_WHITELIST_PACKAGES="功能包名"
+解除指定功能包编译：
+catkin_make -DCATKIN_WHITELIST_PACKAGES=""
+
+使用豆瓣源进行pip安装(网速会快很多)：
+pip install -i https://pypi.doubanio.com/simple/ python包名
+
+ssh登录：
+ssh -Y wheeltec@192.168.0.100
+
+nfs挂载:
+sudo mount -t nfs 192.168.0.100:/home/wheeltec/wheeltec_robot /mnt
+nfs解除挂载:
+sudo umount -t nfs 192.168.0.100:/home/wheeltec/wheeltec_robot /mnt
+
+给文件夹下的所有文件可执行权限：
+sudo chmod -R 777 文件夹
+
+打开地图路径：
+cd /home/wheeltec/wheeltec_robot/src/turn_on_wheeltec_robot/map
+手动保存地图：
+rosrun map_server map_saver -f 20220615
+
+打开摄像头并使用rqt工具查看图像话题：
+roslaunch turn_on_wheeltec_robot wheeltec_camera.launch
+rqt_image_view
+
+查看节点与话题关系
+rqt_graph
+
+生成TF树pdf
+rosrun tf view_frames
+查看TF树
+rosrun rqt_tf_tree rqt_tf_tree
+
+vnc调整分辨率
+xrandr --fb 1024x768

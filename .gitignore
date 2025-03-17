@@ -15,8 +15,8 @@ last_seen_imgs/
 *.log
 
 # temporary files
-src/Cerebellum/wheel_dir/
-!src/Cerebellum/wheel_dir/README.md
+# src/Cerebellum/wheel_dir/
+# !src/Cerebellum/wheel_dir/README.md
 
 # third parties ros packages, installed by scripts
 src/Cerebellum/realsense_ros/
