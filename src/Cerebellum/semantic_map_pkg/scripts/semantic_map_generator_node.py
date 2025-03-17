@@ -10,7 +10,7 @@ from tf2_ros import Buffer, TransformListener
 import tf
 import struct
 import threading
-from semantic_map_generator_pkg.msg import SemanticObject
+from semantic_map_pkg.msg import SemanticObject
 from grounding_sam_ros.srv import (
     VitDetection,
     VitDetectionResponse,

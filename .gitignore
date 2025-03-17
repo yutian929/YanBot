@@ -14,7 +14,7 @@ last_seen_imgs/
 *.bag
 *.log
 
-# temporary files
+# temp files
 # src/Cerebellum/wheel_dir/
 # !src/Cerebellum/wheel_dir/README.md
 

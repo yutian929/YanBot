@@ -7,8 +7,8 @@ from visualization_msgs.msg import MarkerArray, Marker
 from geometry_msgs.msg import Point
 from cv_bridge import CvBridge
 from semantic_map_database import SemanticMapDatabase
-from semantic_map_generator_pkg.msg import SemanticObject
-from semantic_map_generator_pkg.srv import Show, ShowResponse
+from semantic_map_pkg.msg import SemanticObject
+from semantic_map_pkg.srv import Show, ShowResponse
 
 
 class SemanticMapManager:
