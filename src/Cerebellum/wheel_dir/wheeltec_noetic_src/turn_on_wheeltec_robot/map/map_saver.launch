@@ -1,4 +1,0 @@
-<launch>
-	<node pkg="map_server" type="map_saver" name="map_saver1" args="-f /home/yutian/YanBot/src/Cerebellum/wheel_dir/wheeltec_noetic_src/turn_on_wheeltec_robot/map/WHEELTEC" output="screen">	
-	</node>
-</launch>
