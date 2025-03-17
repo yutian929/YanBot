@@ -7,8 +7,15 @@ import numpy as np
 class CLIPMatcher:
     def __init__(self, model_name="ViT-B/16"):
         self.device = "cuda" if torch.cuda.is_available() else "cpu"
-        self.model, self.preprocess = clip.load(model_name, device=self.device)
-        print(f"CLIP model {model_name} loaded on {self.device}")
+        try:
+            self.model, self.preprocess = clip.load(model_name, device=self.device)
+            print(f"CLIP model {model_name} loaded on {self.device}")
+        except Exception as e:
+            print(f"Failed to load CLIP model: {str(e)}")
+            print(
+                f"Please make sure your model name is correct. Model list: {clip.available_models()}"
+            )
+            return
 
     def encode_text(self, text):
         """编码单个文本"""

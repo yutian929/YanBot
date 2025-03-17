@@ -19,6 +19,8 @@ class SemanticMapGuide:
         self.database = SemanticMapDatabase(
             self.db_path, self.last_seen_imgs_dir, renew_db=False
         )
+        # CLIP匹配器
+        self.clip_matcher = CLIPMatcher("ViT-B/16")
         # ROS配置
         ## opencv
         self.bridge = CvBridge()
