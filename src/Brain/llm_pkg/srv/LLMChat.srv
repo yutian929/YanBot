@@ -1,0 +1,7 @@
+# request params
+string type
+string content
+---
+# response params
+bool success
+string response 

@@ -22,7 +22,7 @@ class SemanticMapManager:
             "~last_seen_imgs_dir", "last_seen_imgs"
         )
         self.database = SemanticMapDatabase(
-            self.db_path, self.last_seen_imgs_dir, self.renew_db
+            self.db_path, self.last_seen_imgs_dir, 3, self.renew_db
         )
 
         # ROS配置

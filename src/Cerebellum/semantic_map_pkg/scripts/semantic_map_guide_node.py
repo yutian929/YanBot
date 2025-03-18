@@ -99,12 +99,15 @@ class SemanticMapGuide:
                 nearest_object = obj
         return nearest_object["label"]
 
-    def lang_img_match(self, lang, img):
+    def lang_imgs_match(self, lang, img_paths):
         """
         语言描述和图片匹配
         返回匹配度
         """
-        pass
+        if type(img_paths) is not list:
+            img_paths = [img_paths]
+        match = self.clip_matcher.match_batch(lang, img_paths)
+        return match
 
     def find_semantic_object_by_language(self, language):
         """

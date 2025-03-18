@@ -63,7 +63,7 @@ class CLIPMatcher:
 
         return batch_features.cpu().numpy(), valid_paths
 
-    def match_batch(self, text, image_paths):
+    def match_batch(self, text, image_paths: list):
         """批量计算文本与多个图像的相似度，返回排序结果"""
         # 编码文本
         text_features = self.encode_text(text)

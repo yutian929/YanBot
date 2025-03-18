@@ -1,0 +1,22 @@
+{
+    "chat":{
+        "simple_chat":{
+            "system_prompt": "你是一个AI助手，只能回答是或否。",
+            "max_tokens": 4096,
+            "temperature": 0.5,
+            "top_p": 1,
+            "frequency_penalty": 0,
+            "presence_penalty": 0
+        }
+    },
+    "reason":{
+        "simple_reason":{
+            "system_prompt": "你是一个AI助手，只能回答是或否。",
+            "max_tokens": 4096,
+            "temperature": 0.5,
+            "top_p": 1,
+            "frequency_penalty": 0,
+            "presence_penalty": 0
+        }
+    }
+}

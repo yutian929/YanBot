@@ -7,7 +7,13 @@ import os
 
 
 class SemanticMapDatabase:
-    def __init__(self, db_path: str, last_seen_imgs_dir: str, renew_db: bool = False):
+    def __init__(
+        self,
+        db_path: str,
+        last_seen_imgs_dir: str,
+        last_seen_imgs_max: int = 3,
+        renew_db: bool = False,
+    ):
         """
         初始化语义地图数据库
 
@@ -16,6 +22,7 @@ class SemanticMapDatabase:
         """
         self.db_path = db_path
         self.last_seen_imgs_dir = last_seen_imgs_dir
+        self.last_seen_imgs_max = last_seen_imgs_max
         if not os.path.exists(self.last_seen_imgs_dir):
             os.makedirs(self.last_seen_imgs_dir)
         if type(renew_db) is str:
@@ -39,15 +46,12 @@ class SemanticMapDatabase:
         """删除数据库文件和最近观测图像目录"""
         if os.path.exists(self.db_path):
             os.remove(self.db_path)
-        for img_file in os.listdir(self.last_seen_imgs_dir):
-            os.remove(os.path.join(self.last_seen_imgs_dir, img_file))
-        print(
-            f"Database in {self.db_path} and last seen images in {self.last_seen_imgs_dir} have been deleted."
-        )
+        if os.path.exists(self.last_seen_imgs_dir):
+            os.system(f"rm -rf {self.last_seen_imgs_dir}")
 
     def _init_db(self):
         """
-        初始化数据库表结构: semantic_objects
+        初始化数据库表结构和图像库: semantic_objects
         label: category@id
         bbox: AABB, [x_min, y_min, z_min, x_max, y_max, z_max]
         time_stamp: 时间戳
@@ -73,6 +77,8 @@ class SemanticMapDatabase:
                 conn.commit()
             finally:
                 conn.close()
+        if not os.path.exists(self.last_seen_imgs_dir):
+            os.makedirs(self.last_seen_imgs_dir)
 
     def _float32_to_blob(self, data: list) -> bytes:
         """将 float32 数据转换为二进制数据"""
@@ -223,5 +229,21 @@ class SemanticMapDatabase:
         :param label: 格式为 category@id 的标识符 (如 chair@1)
         :param cv_image: OpenCV 图像对象
         """
-        img_path = os.path.join(self.last_seen_imgs_dir, f"{label}.png")
+        if os.path.exists(os.path.join(self.last_seen_imgs_dir, label)):
+            self._clear_last_seen_imgs(label)
+        else:
+            os.makedirs(os.path.join(self.last_seen_imgs_dir, label))
+        time = datetime.now().strftime("%Y%m%d%H%M%S")
+        img_path = os.path.join(self.last_seen_imgs_dir, label, f"{label}@{time}.png")
         cv2.imwrite(img_path, cv_image)
+
+    def _clear_last_seen_imgs(self, label: str):
+        """
+        清除指定label的最久远的观测图像，当超过self.last_seen_imgs_max时
+        :param label: 格式为 category@id 的标识符 (如 chair@1)
+        """
+        img_dir = os.path.join(self.last_seen_imgs_dir, label)
+        img_files = os.listdir(img_dir)
+        if len(img_files) >= self.last_seen_imgs_max:
+            img_files.sort()
+            os.remove(os.path.join(img_dir, img_files[0]))
