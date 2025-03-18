@@ -78,7 +78,7 @@ class SemanticMapGenerator:
         )
         rospy.loginfo("Semantic object detector service is ready")
 
-        # 设置是否进行点云滤波
+        # 设置是否进行点云滤波，默认为True
         self.enable_filtering = rospy.get_param("~enable_filtering", True)
 
         # 语义地图发布
@@ -293,41 +293,65 @@ class SemanticMapGenerator:
     def point_clouds_filter(self, x: list, y: list, z: list, rgb: list):
         # 根据rosparam确定要不要进行滤波
         if not self.enable_filtering:
-            return x, y, z, rgb
-        
-        # 转换为 numpy 数组
-        points = np.column_stack((x, y, z))
+            return x, y, z, rgb  # 直接返回不做处理
 
-        if len(points) == 0:
-            return x, y, z, rgb
+        # 1. 组织点云数据
+        points = np.array([x, y, z]).T
 
-        try:
-            # 1. KDTree 查询最近邻
-            kdtree = KDTree(points)
-            distances, _ = kdtree.query(points, k=5)  # 计算每个点的最近邻距离
-            mean_distances = np.mean(distances, axis=1)
-            threshold = np.percentile(mean_distances, 95)  # 设定阈值（如95%分位数）
-            filtered_indices = mean_distances < threshold
-            points = points[filtered_indices]
-            rgb = np.array(rgb)[filtered_indices].tolist()
+        # 2. KDTree 最近邻距离计算
+        kdtree = KDTree(points)
+        distances, _ = kdtree.query(points, k=5)  # 计算每个点的最近邻距离
+        mean_distances = np.mean(distances, axis=1)
+        threshold = np.percentile(mean_distances, 95)  # 设定阈值（如95%分位数）
+        filtered_indices = mean_distances < threshold
+        points = points[filtered_indices]
+        rgb = np.array(rgb)[filtered_indices].tolist()
 
-            # 2. DBSCAN 聚类
-            dbscan = DBSCAN(eps=0.05, min_samples=10)  # 可调整超参数
-            labels = dbscan.fit_predict(points)
-            valid_indices = labels != -1  # 仅保留有效点（非噪声）
+        # 3. DBSCAN 聚类
+        dbscan = DBSCAN(eps=0.05, min_samples=10)  # 可调整超参数
+        labels = dbscan.fit_predict(points)
 
-            # 过滤点云
-            filtered_x = points[valid_indices, 0].tolist()
-            filtered_y = points[valid_indices, 1].tolist()
-            filtered_z = points[valid_indices, 2].tolist()
-            filtered_rgb = np.array(rgb)[valid_indices].tolist()
+        unique_labels = set(labels) - {-1}  # 去除噪声点
+        if len(unique_labels) == 0:
+            rospy.logwarn("No valid clusters found.")
+            return [], [], [], []
 
-            rospy.loginfo(f"Point cloud filtered: {len(filtered_x)} points remain.")
-            return filtered_x, filtered_y, filtered_z, filtered_rgb
+        # 4. 计算每个聚类的中心坐标和点数
+        cluster_sizes = {}
+        cluster_centers = {}
+        for label in unique_labels:
+            cluster_points = points[labels == label]
+            cluster_sizes[label] = len(cluster_points)
+            cluster_centers[label] = np.mean(cluster_points, axis=0)  # 计算质心
 
-        except Exception as e:
-            rospy.logerr(f"Point cloud filtering failed: {str(e)}")
-            return x, y, z, rgb
+        # 5. 计算聚类之间的最小距离
+        cluster_labels = list(cluster_centers.keys())
+        cluster_distances = np.zeros((len(cluster_labels), len(cluster_labels)))
+
+        for i in range(len(cluster_labels)):
+            for j in range(i + 1, len(cluster_labels)):
+                dist = np.linalg.norm(cluster_centers[cluster_labels[i]] - cluster_centers[cluster_labels[j]])
+                cluster_distances[i, j] = dist
+                cluster_distances[j, i] = dist
+
+        # 6. 检查是否有多个聚类中心且最近距离 > 0.3m
+        if len(cluster_labels) > 1 and np.min(cluster_distances[np.nonzero(cluster_distances)]) > 0.3:
+            rospy.logwarn("Multiple clusters detected with large separation. Keeping the largest one.")
+
+            # 选择最大的聚类
+            largest_cluster_label = max(cluster_sizes, key=cluster_sizes.get)
+            valid_indices = labels == largest_cluster_label
+        else:
+            valid_indices = labels != -1  # 保留所有有效点（非噪声）
+
+        # 7. 过滤点云数据
+        filtered_x = points[valid_indices, 0].tolist()
+        filtered_y = points[valid_indices, 1].tolist()
+        filtered_z = points[valid_indices, 2].tolist()
+        filtered_rgb = np.array(rgb)[valid_indices].tolist()
+
+        rospy.loginfo(f"Point cloud filtered: {len(filtered_x)} points remain.")
+        return filtered_x, filtered_y, filtered_z, filtered_rgb
 
     def create_semantic_object(
         self,
