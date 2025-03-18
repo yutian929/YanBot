@@ -10,6 +10,8 @@ from tf2_ros import Buffer, TransformListener
 import tf
 import struct
 import threading
+from sklearn.neighbors import KDTree
+from sklearn.cluster import DBSCAN
 from semantic_map_pkg.msg import SemanticObject
 from grounding_sam_ros.srv import (
     VitDetection,
@@ -286,7 +288,39 @@ class SemanticMapGenerator:
         return point_world[:3]
 
     def point_clouds_filter(self, x: list, y: list, z: list, rgb: list):
-        return x, y, z, rgb
+        # 转换为 numpy 数组
+        points = np.column_stack((x, y, z))
+
+        if len(points) == 0:
+            return x, y, z, rgb
+
+        try:
+            # 1. KDTree 查询最近邻
+            kdtree = KDTree(points)
+            distances, _ = kdtree.query(points, k=5)  # 计算每个点的最近邻距离
+            mean_distances = np.mean(distances, axis=1)
+            threshold = np.percentile(mean_distances, 95)  # 设定阈值（如95%分位数）
+            filtered_indices = mean_distances < threshold
+            points = points[filtered_indices]
+            rgb = np.array(rgb)[filtered_indices].tolist()
+
+            # 2. DBSCAN 聚类
+            dbscan = DBSCAN(eps=0.05, min_samples=10)  # 可调整超参数
+            labels = dbscan.fit_predict(points)
+            valid_indices = labels != -1  # 仅保留有效点（非噪声）
+
+            # 过滤点云
+            filtered_x = points[valid_indices, 0].tolist()
+            filtered_y = points[valid_indices, 1].tolist()
+            filtered_z = points[valid_indices, 2].tolist()
+            filtered_rgb = np.array(rgb)[valid_indices].tolist()
+
+            rospy.loginfo(f"Point cloud filtered: {len(filtered_x)} points remain.")
+            return filtered_x, filtered_y, filtered_z, filtered_rgb
+
+        except Exception as e:
+            rospy.logerr(f"Point cloud filtering failed: {str(e)}")
+            return x, y, z, rgb
 
     def create_semantic_object(
         self,
