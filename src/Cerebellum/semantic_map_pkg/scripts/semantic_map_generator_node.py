@@ -78,6 +78,9 @@ class SemanticMapGenerator:
         )
         rospy.loginfo("Semantic object detector service is ready")
 
+        # 设置是否进行点云滤波
+        self.enable_filtering = rospy.get_param("~enable_filtering", True)
+
         # 语义地图发布
         topic_semantic_object_pub = rospy.get_param(
             "~topic_semantic_object_pub", "/semantic_object"
@@ -288,6 +291,10 @@ class SemanticMapGenerator:
         return point_world[:3]
 
     def point_clouds_filter(self, x: list, y: list, z: list, rgb: list):
+        # 根据rosparam确定要不要进行滤波
+        if not self.enable_filtering:
+            return x, y, z, rgb
+        
         # 转换为 numpy 数组
         points = np.column_stack((x, y, z))
 
