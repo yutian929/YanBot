@@ -223,6 +223,28 @@ class SemanticMapDatabase:
             finally:
                 conn.close()
 
+    def get_img_paths_by_category(self, category: str) -> dict:
+        """
+        获取指定类别的所有观测图像路径
+        :param category: 类别标识符 (如 chair)
+        :return: 观测图像路径字典{label: [img_path1, img_path2, ...]}
+        """
+        label_dir_names = os.listdir(self.last_seen_imgs_dir)
+        label_dir_names.sort()
+        img_paths_dict = {}
+        for label_dir_name in label_dir_names:
+            if label_dir_name.startswith(category):
+                img_paths = os.listdir(
+                    os.path.join(self.last_seen_imgs_dir, label_dir_name)
+                )
+                img_paths.sort()
+                img_paths = [
+                    os.path.join(self.last_seen_imgs_dir, label_dir_name, img_path)
+                    for img_path in img_paths
+                ]
+                img_paths_dict[label_dir_name] = img_paths
+        return img_paths_dict
+
     def _save_last_seen_img(self, label: str, cv_image: np.ndarray):
         """
         保存最近观测图像

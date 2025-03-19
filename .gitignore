@@ -18,6 +18,10 @@ last_seen_imgs/
 # src/Cerebellum/wheel_dir/
 # !src/Cerebellum/wheel_dir/README.md
 
+# xf
+src/Cerebellum/wheel_dir/wheeltec_noetic_src/xf_mic_asr_offline_circle/config/msc/res/asr/common.jet
+src/Cerebellum/wheel_dir/wheeltec_noetic_src/xf_mic_asr_offline_circle/config/appid_params.yaml
+
 # third parties ros packages, installed by scripts
 src/Cerebellum/realsense_ros/
 src/Cerebellum/grounded_sam2/

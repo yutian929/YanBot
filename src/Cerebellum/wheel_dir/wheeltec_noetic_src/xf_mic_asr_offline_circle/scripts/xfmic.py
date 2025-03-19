@@ -331,7 +331,6 @@ class Audio_Record(object):
                     stream.close()
                     pa.terminate()
                     return False
-        return True
 
 
 if __name__ == "__main__":

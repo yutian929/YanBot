@@ -30,6 +30,12 @@ class LLMNode:
 
         rospy.loginfo("LLM服务节点已启动")
 
+    def _process_response(self, response):
+        response = response.strip()
+        response = response.replace("<ans>", "").replace("<think>", "")
+        response = response.replace("\n", "")
+        return response
+
     def handle_llm_chat_request(self, req):
         try:
             type = req.type
@@ -47,7 +53,7 @@ class LLMNode:
 
             # 使用非流式响应
             response = self.chat_llm.non_stream_chat(messages)
-
+            response = self._process_response(response)
             return LLMChatResponse(success=True, response=str(response))
 
         except Exception as e:
@@ -70,7 +76,7 @@ class LLMNode:
             ]
 
             response = self.reason_llm.non_stream_chat(messages)
-
+            response = self._process_response(response)
             return LLMChatResponse(success=True, response=str(response))
 
         except Exception as e:
