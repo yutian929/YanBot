@@ -1,0 +1,5 @@
+# {"file_name": "stt.wav"}
+string input_json
+---
+string output_json
+# {"asr_result": txt}

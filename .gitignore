@@ -10,6 +10,7 @@ logs/
 temp/
 thirdparties/
 last_seen_imgs/
+last_heard_audios/
 *.db
 *.bag
 *.log
