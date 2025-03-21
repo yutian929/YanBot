@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 import rospy
 import json
 import os
@@ -7,17 +6,10 @@ from asr import ASR
 
 
 def get_normalized_path(relative_path):
-    # 获取当前脚本的绝对路径
     current_script_path = os.path.abspath(__file__)
-    print(f"current_script_path={current_script_path}")
-
-    # 获取当前脚本所在目录
     current_dir = os.path.dirname(current_script_path)
-    print(f"current_dir={current_dir}")
-
-    # 拼接路径并规范化
     target_path = os.path.normpath(os.path.join(current_dir, relative_path))
-    print(f"target_path={target_path}")
+
     if not os.path.exists(target_path):
         raise FileNotFoundError(f"路径不存在：{target_path}")
 

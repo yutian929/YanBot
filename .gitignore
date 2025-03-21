@@ -14,6 +14,7 @@ last_heard_audios/
 *.db
 *.bag
 *.log
+*.wav
 
 # temp files
 # src/Cerebellum/wheel_dir/
@@ -22,6 +23,9 @@ last_heard_audios/
 # xf
 src/Cerebellum/wheel_dir/wheeltec_noetic_src/xf_mic_asr_offline_circle/config/msc/res/asr/common.jet
 src/Cerebellum/wheel_dir/wheeltec_noetic_src/xf_mic_asr_offline_circle/config/appid_params.yaml
+
+# tts
+src/Cerebellum/tts_pkg/scripts/asset/
 
 # third parties ros packages, installed by scripts
 src/Cerebellum/realsense_ros/

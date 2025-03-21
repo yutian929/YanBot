@@ -1,0 +1,10 @@
+<launch>
+  <!-- Get environment variables -->
+  <arg name="venv" default="/home/$(env USER)/miniconda3/envs/tts/bin/python" doc="Path to python environment."/>
+
+  <node name="tts_node" pkg="tts_pkg" type="tts_node.py" launch-prefix = "$(arg venv)" output="screen" >
+    <param name="random_voice" type="bool" value="false" />
+    <param name="compile_model" type="bool" value="false" />
+  </node>
+
+</launch>
