@@ -33,3 +33,4 @@ src/Cerebellum/grounded_sam2/
 src/Cerebellum/grounding_sam_ros/
 src/Cerebellum/orb_slam3_ros/
 src/Cerebellum/paddlex/
+src/Cerebellum/yolo_evsam_ros/
