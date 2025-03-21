@@ -7,15 +7,15 @@ from tts_pkg.srv import TTS, TTSRequest
 def test_service():
     # 等待服务可用
     print("Waiting for service...")
-    rospy.wait_for_service("/srv__tts")
+    rospy.wait_for_service("/srv_tts")
     print("Service found")
     try:
         # 创建服务代理
-        tts_proxy = rospy.ServiceProxy("/srv__tts", TTS)
+        tts_proxy = rospy.ServiceProxy("/srv_tts", TTS)
 
         # 构造请求
         request = TTSRequest()
-        request.input_json = '{"text": "你好，我是雨田"}'
+        request.input_json = '{"text": "你好, 我是雨田, 初次见面, 请多关照."}'
 
         # 调用服务
         response = tts_proxy(request)
