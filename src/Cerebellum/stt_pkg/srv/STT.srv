@@ -1,5 +1,6 @@
-# {"file_name": "stt.wav"}
+# {"file_path": "xxx/stt.wav"}
 string input_json
 ---
 string output_json
-# {"asr_result": txt}
+# {"status": "success", "asr_result": txt}
+# {"status": "error", "message": "xxx"}

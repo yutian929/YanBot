@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 import rospy
 import json
-from stt_msgs.srv import STT, STTRequest
+from stt_pkg.srv import STT, STTRequest
 
 
 def test_service():
@@ -14,7 +14,9 @@ def test_service():
 
         # 构造请求
         request = STTRequest()
-        request.input_json = '{"query": "stt.wav"}'
+        request.input_json = (
+            '{"file_path": "/home/yutian/YanBot/last_heard_audios/stt.wav"}'
+        )
 
         # 调用服务
         response = stt_proxy(request)

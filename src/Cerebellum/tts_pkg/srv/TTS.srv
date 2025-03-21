@@ -1,5 +1,6 @@
-# {"query": txt}
+# {"text": txt}
 string input_json
 ---
 string output_json
-# {"ans": "tts.wav"}
+# {"status": "success", "file_path": "xxx/tts.wav"}
+# {"status": "error", "message": "xxx"}

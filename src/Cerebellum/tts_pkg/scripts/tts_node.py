@@ -9,16 +9,14 @@ def get_normalized_path(relative_path):
     current_script_path = os.path.abspath(__file__)
     current_dir = os.path.dirname(current_script_path)
     target_path = os.path.normpath(os.path.join(current_dir, relative_path))
-
     if not os.path.exists(target_path):
-        raise FileNotFoundError(f"路径不存在：{target_path}")
+        os.makedirs(target_path)
 
     return target_path
 
 
 class TTSNode:
     def __init__(self):
-        print(f"init tts node")
         rospy.init_node("tts_node")
 
         # 从ROS参数服务器获取配置
@@ -29,10 +27,17 @@ class TTSNode:
         self.tts_engine = TTS_ENGINE(
             random_voice=self.random_voice, compile_model=self.compile_model
         )
-
         # 设置音频保存路径
         self.audio_relative_dir = "../../../../last_heard_audios"
-
+        self.file_name = "tts.wav"
+        self.file_path = os.path.join(
+            get_normalized_path(self.audio_relative_dir), self.file_name
+        )
+        # 创建初始音频
+        self.tts_engine.text_to_speech(
+            texts=["你好, 我是燕燕, 很高兴为你服务. 请问我可以为你做什么嘛?[uv_break]"],
+            output_file=self.file_path,
+        )
         # 创建TTS服务
         self.service = rospy.Service("srv_tts", TTS, self.handle_tts_request)
         rospy.loginfo(f"TTS Service Ready (random_voice={self.random_voice})")
@@ -44,26 +49,27 @@ class TTSNode:
             # 解析输入JSON
             input_data = json.loads(req.input_json)
             text = input_data.get("text", "")
-            filename = input_data.get("file_name", "tts_output.wav")
 
             # 验证输入有效性
-            if not text:
-                raise ValueError("输入文本不能为空")
+            # if not text:
+            #     raise ValueError("输入文本不能为空")
 
-            # 生成完整文件路径
-            output_path = get_normalized_path(f"{self.audio_relative_dir}/{filename}")
+            # 前处理,加入[uv_break]
+            text = text.replace(".", ".[uv_break] ")
 
             # 生成语音
             result_path = self.tts_engine.text_to_speech(
                 texts=[text],
-                output_file=output_path,
+                output_file=self.file_path,
                 temperature=input_data.get("temperature", 0.5),
                 top_p=input_data.get("top_p", 0.7),
                 top_k=input_data.get("top_k", 20),
             )
 
             return TTSResponse(
-                output_json=json.dumps({"status": "success", "file_path": result_path})
+                output_json=json.dumps(
+                    {"status": "success", "file_path": self.file_path}
+                )
             )
         except Exception as e:
             return TTSResponse(

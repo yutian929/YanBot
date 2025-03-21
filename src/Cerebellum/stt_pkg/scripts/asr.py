@@ -29,6 +29,6 @@ class ASR:
             )
 
             text = rich_transcription_postprocess(res[0]["text"])
-            return {"asr_result": text}
+            return text
         except Exception as e:
-            return {"error": str(e)}
+            return str(e)
