@@ -30,9 +30,12 @@ if [ -d "yolo_evsam_ros" ]; then
     echo "yolo_evsam_ros directory already exists. Skipping clone."
 else
     echo "Cloning yolo_evsam_ros..."
-    git clone https://github.com/zjy109/YanBot-yolo_evsam_ros.git yolo_evsam_ros
+    git clone https://github.com/yutian929/YanBot-yolo_evsam_ros.git yolo_evsam_ros
     check_success
 fi
+
+
+cd yolo_evsam_ros/
 
 # 检查 Conda 是否安装
 if ! command -v conda &> /dev/null; then
@@ -52,7 +55,7 @@ fi
 
 
 # Download the checkpoints
-cd yolo_evsam_ros/weights/
+cd weights/
 bash download_weights.sh
 check_success
 cd ../
@@ -69,8 +72,4 @@ python -m pip install git+https://github.com/facebookresearch/segment-anything.g
 check_success
 
 
-cd ../
-cd ../../
-
-
-
+check_ws
