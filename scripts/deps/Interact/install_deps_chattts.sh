@@ -22,6 +22,10 @@ check_ws() {
 # check and goto YANBOT_WS
 check_ws
 
+# 安装音频后端依赖
+sudo apt install sox libsox-dev
+check_success
+
 # Prepare conda environment
 # 检查 Conda 是否安装
 if ! command -v conda &> /dev/null; then
