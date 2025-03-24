@@ -14,6 +14,7 @@ import re
 import difflib
 from funasr import AutoModel
 from wakeup_pkg.msg import WakeUp
+from std_srvs.srv import SetBool, SetBoolResponse
 
 
 class WakeUpNode:
@@ -27,6 +28,14 @@ class WakeUpNode:
 
         # 发布者
         self.wakeup_pub = rospy.Publisher("wakeup", WakeUp, queue_size=1)
+
+        # 订阅控制命令
+        self.control_sub = rospy.Subscriber(
+            "wakeup_control", Bool, self.control_callback
+        )
+
+        # 麦克风状态标志
+        self.mic_active = True
 
         # 初始化音频处理参数
         self.sample_rate = 16000
@@ -62,6 +71,11 @@ class WakeUpNode:
         # 初始化线程
         self.asr_thread = None
         self.is_running = True
+
+        # 添加服务
+        self.wakeup_service = rospy.Service(
+            "wakeup_control", SetBool, self.service_callback
+        )
 
     def create_wav_header(
         self, dataflow, sample_rate=16000, num_channels=1, bits_per_sample=16
@@ -139,10 +153,6 @@ class WakeUpNode:
         ASR 模块，分线程使用
 
         从语音流vad_queue获取数据，进行语音识别
-        识别结果发布到话题:
-        - /ASR/msg (String): 识别的文本
-        - /ASR/wakeup (String): 唤醒词检测结果
-        - /topic_wakeup (Bool): 唤醒状态
         """
         rospy.loginfo("ASR线程启动")
 
@@ -204,17 +214,51 @@ class WakeUpNode:
             self.wakeup_pub.publish(wakeup_msg)
             rospy.loginfo(asr_result)
 
-    def run(self):
-        """
-        主循环，处理音频流
+    def control_callback(self, msg):
+        """处理开关控制命令"""
+        if msg.data and not self.mic_active:
+            # 开启麦克风
+            rospy.loginfo("开启语音唤醒功能")
+            self.mic_active = True
+            # 如果麦克风线程不存在或已结束，则重新启动
+            if not hasattr(self, "mic_thread") or not self.mic_thread.is_alive():
+                self.mic_thread = threading.Thread(target=self.run_mic)
+                self.mic_thread.daemon = True
+                self.mic_thread.start()
+        elif not msg.data and self.mic_active:
+            # 关闭麦克风
+            rospy.loginfo("关闭语音唤醒功能")
+            self.mic_active = False
 
-        从麦克风读取音频，经过降噪、VAD检测，将有语音活动的片段送入ASR处理
-        """
-        # 启动ASR线程
-        self.asr_thread = threading.Thread(target=self.asr_process)
-        self.asr_thread.daemon = True
-        self.asr_thread.start()
+    def service_callback(self, req):
+        response = SetBoolResponse()
 
+        if req.data and not self.mic_active:
+            # 开启麦克风
+            rospy.loginfo("开启语音唤醒功能")
+            self.mic_active = True
+            # 如果麦克风线程不存在或已结束，则重新启动
+            if not hasattr(self, "mic_thread") or not self.mic_thread.is_alive():
+                self.mic_thread = threading.Thread(target=self.run_mic)
+                self.mic_thread.daemon = True
+                self.mic_thread.start()
+            response.success = True
+            response.message = "语音唤醒功能已开启"
+        elif not req.data and self.mic_active:
+            # 关闭麦克风
+            rospy.loginfo("关闭语音唤醒功能")
+            self.mic_active = False
+            response.success = True
+            response.message = "语音唤醒功能已关闭"
+        else:
+            # 已经处于请求的状态
+            response.success = True
+            response.message = f"语音唤醒功能已经{'开启' if self.mic_active else '关闭'}"
+
+        return response
+
+    def run_mic(self):
+        """麦克风处理线程"""
         rospy.loginfo("开始录音并等待语音输入...")
 
         try:
@@ -224,7 +268,7 @@ class WakeUpNode:
                 vad_buffer = b""
                 buffer = b""
 
-                while not rospy.is_shutdown() and self.is_running:
+                while not rospy.is_shutdown() and self.is_running and self.mic_active:
                     # 读取音频数据
                     dataflow = stream.read(self.window)[0].tobytes()
                     if len(dataflow) == 0:
@@ -269,11 +313,36 @@ class WakeUpNode:
                             self.vad_queue.put(wav_data)
                             buffer = b""
 
+                    # # 在检测到唤醒词后自动关闭麦克风（可选）
+                    # if any([ret1, ret2, ret3, ret4, ret5, ret6]):
+                    #     wakeup_msg = WakeUp()
+                    #     wakeup_msg.wakeup = True
+                    #     wakeup_msg.asr_result = "ASR结果: 唤醒词检测到"
+                    #     self.wakeup_pub.publish(wakeup_msg)
+                    #     rospy.loginfo("检测到唤醒词，暂停语音唤醒功能")
+                    #     self.mic_active = False
+                    #     break
+
         except Exception as e:
             rospy.logerr(f"录音出错: {str(e)}")
 
         finally:
-            rospy.loginfo("录音结束")
+            rospy.loginfo("麦克风录音暂停")
+
+    def run(self):
+        """主函数，启动ASR线程和麦克风线程"""
+        # 启动ASR线程
+        self.asr_thread = threading.Thread(target=self.asr_process)
+        self.asr_thread.daemon = True
+        self.asr_thread.start()
+
+        # 启动麦克风线程
+        self.mic_thread = threading.Thread(target=self.run_mic)
+        self.mic_thread.daemon = True
+        self.mic_thread.start()
+
+        # 等待ROS关闭
+        rospy.spin()
 
     def shutdown(self):
         """关闭节点时的清理工作"""
@@ -287,7 +356,6 @@ if __name__ == "__main__":
     try:
         node = WakeUpNode()
         node.run()
-        rospy.spin()
     except rospy.ROSInterruptException:
         pass
     finally:
