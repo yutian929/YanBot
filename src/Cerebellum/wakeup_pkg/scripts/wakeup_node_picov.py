@@ -12,7 +12,10 @@ class VoiceAssistant:
     def __init__(self):
         # 初始化唤醒引擎
         self.porcupine = pvporcupine.create(
-            access_key="", keyword_paths=["./Hi-Robot_en_linux_v3_0_0.ppn"]
+            access_key="Zb81mFL4TMaRtTQXc/dN09jIaxuH+dwVOHmhSb8lTTLjRuxJYQ28KA==",
+            keyword_paths=[
+                "/home/yutian/YanBot/src/Cerebellum/wakeup_pkg/scripts/Hi-Robot_en_linux_v3_0_0.ppn"
+            ],
         )
 
         # 获取引擎参数

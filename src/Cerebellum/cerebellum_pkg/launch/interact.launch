@@ -1,0 +1,42 @@
+<launch>
+    <!-- 获取环境变量 -->
+    <arg name="wakeup_venv" default="/home/$(env USER)/miniconda3/envs/asr/bin/python" doc="唤醒词检测节点的Python环境路径"/>
+    <arg name="stt_venv" default="/home/$(env USER)/miniconda3/envs/asr/bin/python" doc="语音识别服务的Python环境路径"/>
+    <arg name="tts_venv" default="/home/$(env USER)/miniconda3/envs/tts/bin/python" doc="语音合成服务的Python环境路径"/>
+    <arg name="interact_venv" default="/home/$(env USER)/miniconda3/envs/asr/bin/python" doc="交互测试节点的Python环境路径"/>
+
+    <!-- 唤醒词检测节点 -->
+    <node name="wakeup_node" 
+          pkg="wakeup_pkg" 
+          type="wakeup_node.py"
+          launch-prefix="$(arg wakeup_venv)"
+          output="screen"
+          respawn="true">
+    </node>
+
+    <!-- 语音识别服务(STT) -->
+    <node name="stt_node" 
+          pkg="stt_pkg" 
+          type="stt_node.py"
+          launch-prefix="$(arg stt_venv)"
+          output="screen">
+    </node>
+
+    <!-- 语音合成服务(TTS) -->
+    <node name="tts_node" 
+          pkg="tts_pkg" 
+          type="tts_node.py"
+          launch-prefix="$(arg tts_venv)"
+          output="screen">
+    </node>
+
+    <!-- 主交互测试节点 -->
+    <node name="interact_test_node" 
+          pkg="cerebellum_pkg" 
+          type="interact_test_node.py"
+          launch-prefix="$(arg interact_venv)"
+          output="screen"
+          required="true">
+    </node>
+
+</launch>
