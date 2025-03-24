@@ -5,6 +5,10 @@
   <node name="tts_node" pkg="tts_pkg" type="tts_node.py" launch-prefix = "$(arg venv)" output="screen" >
     <param name="random_voice" type="bool" value="false" />
     <param name="compile_model" type="bool" value="false" />
+    <param name="default_tts_wav_path" type="str" value="$(env YANBOT_WS)/last_heard_audios/tts.wav" />
+    <param name="temperature" type="double" value="0.5" />
+    <param name="top_p" type="double" value="0.7" />
+    <param name="top_k" type="int" value="20" />
   </node>
 
 </launch>

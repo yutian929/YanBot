@@ -12,6 +12,11 @@
           launch-prefix="$(arg wakeup_venv)"
           output="screen"
           respawn="true">
+      <param name="asr_model_dir" type="str" value="iic/SenseVoiceSmall" />
+      <param name="vad_model_dir" type="str" value="fsmn-vad" />
+      <param name="similar_threshold" type="double" value="0.8" />
+      <param name="max_no_speech_frames" type="int" value="3" />
+      <param name="max_recording_frames" type="int" value="100" />
     </node>
 
     <!-- 语音识别服务(STT) -->
@@ -20,6 +25,8 @@
           type="stt_node.py"
           launch-prefix="$(arg stt_venv)"
           output="screen">
+      <param name="asr_model_dir" type="str" value="iic/SenseVoiceSmall" />
+      <param name="default_stt_wav_path" type="str" value="$(env YANBOT_WS)/last_heard_audios/stt.wav" />
     </node>
 
     <!-- 语音合成服务(TTS) -->
@@ -28,6 +35,12 @@
           type="tts_node.py"
           launch-prefix="$(arg tts_venv)"
           output="screen">
+      <param name="random_voice" type="bool" value="false" />
+      <param name="compile_model" type="bool" value="false" />
+      <param name="default_tts_wav_path" type="str" value="$(env YANBOT_WS)/last_heard_audios/tts.wav" />
+      <param name="temperature" type="double" value="0.5" />
+      <param name="top_p" type="double" value="0.7" />
+      <param name="top_k" type="int" value="20" />
     </node>
 
     <!-- 主交互测试节点 -->
@@ -37,6 +50,7 @@
           launch-prefix="$(arg interact_venv)"
           output="screen"
           required="true">
+      <param name="default_stt_wav_path" type="str" value="$(env YANBOT_WS)/last_heard_audios/stt.wav" />
     </node>
 
 </launch>

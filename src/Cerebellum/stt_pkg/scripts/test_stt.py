@@ -11,12 +11,13 @@ def test_service():
     try:
         # 创建服务代理
         stt_proxy = rospy.ServiceProxy("/srv_stt", STT)
+        stt_wav_path = rospy.get_param(
+            "~default_stt_wav_path", "/home/yutian/YanBot/last_heard_audios/stt.wav"
+        )
 
         # 构造请求
         request = STTRequest()
-        request.input_json = (
-            '{"file_path": "/home/yutian/YanBot/last_heard_audios/stt.wav"}'
-        )
+        request.input_json = f'{{"file_path": "{stt_wav_path}"}}'
 
         # 调用服务
         response = stt_proxy(request)

@@ -3,6 +3,11 @@
   <arg name="venv" default="/home/$(env USER)/miniconda3/envs/asr/bin/python" doc="Path to python environment."/>
 
   <node name="wakeup_node" pkg="wakeup_pkg" type="wakeup_node.py" launch-prefix = "$(arg venv)" output="screen" >
+    <param name="asr_model_dir" type="str" value="iic/SenseVoiceSmall" />
+    <param name="vad_model_dir" type="str" value="fsmn-vad" />
+    <param name="similar_threshold" type="double" value="0.8" />
+    <param name="max_no_speech_frames" type="int" value="5" />
+    <param name="max_recording_frames" type="int" value="100" />
   </node>
 
 </launch>

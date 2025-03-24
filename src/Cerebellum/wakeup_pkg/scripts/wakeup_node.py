@@ -1,5 +1,3 @@
-#!/usr/bin/env python3
-
 import rospy
 import sounddevice as sd
 import numpy as np
@@ -37,31 +35,37 @@ class WakeUpNode:
         self.frame_length = 512  # 每次处理的样本数
 
         # 初始化VAD模型
-        rospy.loginfo("正在加载VAD语音活动检测模型...")
-        self.vad_model = AutoModel(
-            model="fsmn-vad", model_revision="v2.0.4", disable_pbar=True
-        )
+        vad_model_dir = rospy.get_param("~vad_model_dir", "fsmn-vad")
+        rospy.loginfo(f"正在加载VAD语音活动检测模型: {vad_model_dir}...")
+        self.vad_model = AutoModel(model=vad_model_dir, disable_pbar=True)
 
         # 初始化ASR模型
-        rospy.loginfo("正在加载ASR语音识别模型...")
+        asr_model_dir = rospy.get_param("~asr_model_dir", "iic/SenseVoiceSmall")
+        rospy.loginfo(f"正在加载ASR语音识别模型: {asr_model_dir}...")
         self.asr_pipeline = pipeline(
             task=Tasks.auto_speech_recognition,
-            model="iic/SenseVoiceSmall",
+            model=asr_model_dir,
             model_revision="master",
             device="cuda:0",
             disable_pbar=True,
         )
-        self.similar_threshold = 0.8
+
+        # 初始化唤醒词检测阈值
+        self.similar_threshold = rospy.get_param("~similar_threshold", 0.8)
 
         # 录音相关参数
         self.recording_data = []
         self.vad_cache = {}
         self.no_speech_frames = 0
-        self.max_no_speech_frames = 5  # 连续5次没有检测到语音则停止录音
+        self.max_no_speech_frames = rospy.get_param(
+            "~max_no_speech_frames", 3
+        )  # 连续max_no_speech_frames次没有检测到语音则停止录音
         self.is_recording = False
         self.has_speech = False
         self.audio_buffer = np.array([], dtype=np.int16)  # 添加音频缓冲区
-        self.max_recording_frames = 100  # 添加最大录音帧数限制
+        self.max_recording_frames = rospy.get_param(
+            "~max_recording_frames", 100
+        )  # 添加最大录音帧数限制
 
         # 添加服务
         self.wakeup_control_service = rospy.Service(
@@ -70,7 +74,7 @@ class WakeUpNode:
 
         self.stream = None  # 添加stream属性
 
-        rospy.loginfo("wakeup_node初始化完成")
+        rospy.loginfo("wakeup_node Started")
 
     def find_similar_substrings(self, target, long_string, threshold=0.7):
         """
@@ -296,9 +300,7 @@ class WakeUpNode:
 
                     # 添加安全检查，防止录音无限进行
                     if len(self.recording_data) > self.max_recording_frames:
-                        rospy.logwarn(
-                            f"未检测到语音结束，但已达最大帧数限制({self.max_recording_frames})，停止录音"
-                        )
+                        rospy.logwarn(f"<<<已达最大帧数限制({self.max_recording_frames})，停止录音")
                         self.stop_recording()
                         continue
 
@@ -337,9 +339,7 @@ class WakeUpNode:
                                 self.has_speech
                                 and self.no_speech_frames >= self.max_no_speech_frames
                             ):
-                                rospy.loginfo(
-                                    f"检测到语音结束，停止录音 (no_speech_frames={self.no_speech_frames})"
-                                )
+                                rospy.loginfo(f"<<<")
                                 self.stop_recording()
                         except Exception as e:
                             rospy.logerr(f"VAD处理出错: {str(e)}")
@@ -362,7 +362,7 @@ class WakeUpNode:
                                 and "value" in res[0]
                                 and res[0]["value"]
                             ):
-                                rospy.loginfo("检测到语音，开始录音")
+                                rospy.loginfo(">>>")
                                 self.start_recording()
                                 self.recording_data.append(chunk)  # 保存当前块
                         except Exception as e:

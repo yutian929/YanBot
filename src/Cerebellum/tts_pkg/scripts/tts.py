@@ -47,9 +47,6 @@ class TTS:
             temperature (float): 解码温度
             top_p (float): top P 解码参数
             top_k (int): top K 解码参数
-
-        Returns:
-            str: 生成的音频文件路径
         """
         params_infer_code = ChatTTS.Chat.InferCodeParams(
             spk_emb=self.speaker,
@@ -67,8 +64,6 @@ class TTS:
             torchaudio.save(output_file, torch.from_numpy(wavs[0]).unsqueeze(0), 24000)
         except:
             torchaudio.save(output_file, torch.from_numpy(wavs[0]), 24000)
-
-        return output_file
 
 
 if __name__ == "__main__":

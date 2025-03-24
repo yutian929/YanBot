@@ -3,7 +3,8 @@
   <arg name="venv" default="/home/$(env USER)/miniconda3/envs/asr/bin/python" doc="Path to python environment."/>
 
   <node name="stt_node" pkg="stt_pkg" type="stt_node.py" launch-prefix = "$(arg venv)" output="screen" >
-    <param name="model_dir" type="str" value="iic/SenseVoiceSmall" />
+    <param name="asr_model_dir" type="str" value="iic/SenseVoiceSmall" />
+    <param name="default_stt_wav_path" type="str" value="$(env YANBOT_WS)/last_heard_audios/stt.wav" />
   </node>
 
 </launch>
