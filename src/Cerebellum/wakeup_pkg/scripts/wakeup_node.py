@@ -13,6 +13,7 @@ import pypinyin
 import re
 import difflib
 from funasr import AutoModel
+from wakeup_pkg.msg import WakeUp
 
 
 class WakeUpNode:
@@ -25,13 +26,11 @@ class WakeUpNode:
         rospy.init_node("wakeup_node")
 
         # 发布者
-        self.asr_pub = rospy.Publisher("ASR/msg", String, queue_size=1)
-        self.wakeup_pub = rospy.Publisher("ASR/wakeup", String, queue_size=1)
-        self.topic_wakeup_pub = rospy.Publisher("topic_wakeup", Bool, queue_size=1)
+        self.wakeup_pub = rospy.Publisher("wakeup", WakeUp, queue_size=1)
 
         # 初始化音频处理参数
         self.sample_rate = 16000
-        self.window = 8 * 1600 * 2  # 800ms 窗口
+        self.window = 5 * 1600 * 2  # 500ms 窗口
 
         # 初始化队列
         self.denoise_queue = queue.Queue()
@@ -170,36 +169,40 @@ class WakeUpNode:
             # 唤醒词检测
             ret1 = self.find_similar_substrings("ni3hao3yan4yan4", pinyin_str, 0.5)
             ret2 = self.find_similar_substrings("nihaoyanyan", pinyin_str2, 0.5)
-            ret3 = self.find_similar_substrings("nihaoyan", pinyin_str2, 0.5)
-            ret4 = self.find_similar_substrings("nihaoyayan", pinyin_str2, 0.5)
+            ret3 = self.find_similar_substrings("ni3hao3yan4", pinyin_str2, 0.5)
+            ret4 = self.find_similar_substrings("nihaoyan", pinyin_str, 0.5)
             ret5 = self.find_similar_substrings("xiao3yan4xiao3yan4", pinyin_str, 0.5)
             ret6 = self.find_similar_substrings("xiaoyanxiaoyan", pinyin_str2, 0.5)
 
+            wakeup_msg = WakeUp()
+            wakeup_msg.wakeup = False
+            asr_result = ""
+
             # 发布ASR结果
             if len(cleaned_text) > 0:
-                self.asr_pub.publish(cleaned_text)
-                rospy.loginfo("ASR结果: %s", cleaned_text)
+                asr_result = "ASR结果: " + cleaned_text
 
             # 检测唤醒词并发布唤醒信号
-            if ret1 or ret2 or ret3 or ret4:
-                msg = "ASR唤醒"
+            if any([ret1, ret2, ret3, ret4, ret5, ret6]):
+                asr_result += "\t唤醒词: "
                 if ret1:
-                    msg += ret1[0][0]
+                    asr_result += ret1[0][0]
                 if ret2:
-                    msg += ret2[0][0]
-                self.wakeup_pub.publish(msg)
-                self.topic_wakeup_pub.publish(True)
-                rospy.loginfo("ASR唤醒: %s", msg)
-
-            if ret5 or ret6:
-                msg = "ASR唤醒"
+                    asr_result += ret2[0][0]
+                if ret3:
+                    asr_result += ret3[0][0]
+                if ret4:
+                    asr_result += ret4[0][0]
                 if ret5:
-                    msg += ret5[0][0]
+                    asr_result += ret5[0][0]
                 if ret6:
-                    msg += ret6[0][0]
-                self.wakeup_pub.publish(msg)
-                self.topic_wakeup_pub.publish(True)
-                rospy.loginfo("ASR唤醒: %s", msg)
+                    asr_result += ret6[0][0]
+                wakeup_msg.wakeup = True
+
+            wakeup_msg.asr_result = asr_result
+
+            self.wakeup_pub.publish(wakeup_msg)
+            rospy.loginfo(asr_result)
 
     def run(self):
         """
