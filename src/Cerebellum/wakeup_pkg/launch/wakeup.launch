@@ -1,0 +1,8 @@
+<launch>
+  <!-- Get environment variables -->
+  <arg name="venv" default="/home/$(env USER)/miniconda3/envs/asr/bin/python" doc="Path to python environment."/>
+
+  <node name="wakeup_node" pkg="wakeup_pkg" type="wakeup_node.py" launch-prefix = "$(arg venv)" output="screen" >
+  </node>
+
+</launch>
