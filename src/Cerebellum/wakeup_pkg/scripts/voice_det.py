@@ -120,7 +120,7 @@ def ASR():
     
     :TOPIC: /ASR/msg String   
     :TOPIC: /ASR/wakeup String   
-    话题按需调整，目前直接把utf8仍进去了
+    话题按需调整，目前直接把utf8扔进去了
 
     ASR拿到以后识别，文字转拼音，判断与唤醒词拼音的相似程度，大于阈值则发布话题，否则不发布话题
     """
@@ -135,6 +135,8 @@ def ASR():
             continue
         ret = ASR_pipeline(speech)
         cleaned_text = re.sub('<\|[^|]+\|>', "", ret[0]['text'])
+
+        # pinyin_str带声调，pinyin_str2不带声调
         pinyin = pypinyin.lazy_pinyin(ret[0]['text'], style=pypinyin.TONE3, errors=lambda x: ' ')
         pinyin_str = ''.join(pinyin)
         pinyin2 = pypinyin.lazy_pinyin(ret[0]['text'], style=pypinyin.NORMAL, errors=lambda x:'')
