@@ -8,6 +8,8 @@ from std_msgs.msg import Header
 from message_filters import ApproximateTimeSynchronizer, Subscriber
 from tf2_ros import Buffer, TransformListener
 import tf
+import re
+import json
 import struct
 import threading
 from sklearn.neighbors import KDTree
@@ -26,10 +28,10 @@ class SemanticMapGenerator:
         rospy.init_node("semantic_map_generator")
 
         # 初始化参数
-        self.current_prompt = rospy.get_param(
-            "~default_prompt",
-            "pen. cup. tissue. mouse. keyboard. book. cellphone. earphone. keys. bottle. ",
+        self.semantic_categories_json_path = rospy.get_param(
+            "~semantic_categories_json_path", "semantic_categories.json"
         )
+        self.reload_semantic_categories()
         self.downsample_step = rospy.get_param("~downsample_step", 2)
         self.bridge = CvBridge()
         self.data_lock = threading.Lock()
@@ -69,14 +71,12 @@ class SemanticMapGenerator:
         self.masks_pub = rospy.Publisher(topic_masks_pub, Image, queue_size=1)
 
         # 初始化语义对象检测器, 客户端
-        service_semantic_object_detector = rospy.get_param(
-            "~service_semantic_object_detector", "/vit_detection"
+        service_semantic_object_detseg = rospy.get_param(
+            "~service_semantic_object_detseg", "/vit_detection"
         )
-        rospy.wait_for_service(service_semantic_object_detector)
-        self.detector = rospy.ServiceProxy(
-            service_semantic_object_detector, VitDetection
-        )
-        rospy.loginfo("Semantic object detector service is ready")
+        rospy.wait_for_service(service_semantic_object_detseg)
+        self.detector = rospy.ServiceProxy(service_semantic_object_detseg, VitDetection)
+        rospy.loginfo("Semantic object det & seg service is ready")
 
         # 设置是否进行点云滤波，默认为True
         self.enable_filtering = rospy.get_param("~enable_filtering", True)
@@ -96,9 +96,25 @@ class SemanticMapGenerator:
         rospy.Service(service_update_prompt, UpdatePrompt, self.prompt_callback)
 
         # 定时器
-        rospy.Timer(rospy.Duration(1), self.timer_callback)
+        timer_duration = rospy.get_param("~timer_duration", 1.0)
+        rospy.Timer(rospy.Duration(timer_duration), self.timer_callback)
 
         rospy.loginfo("semantic_map_generator_node initialization complete.")
+
+    def reload_semantic_categories(self):
+        self.semantic_categories = json.load(
+            open(self.semantic_categories_json_path, "r")
+        )[
+            "categories"
+        ]  # list
+        self.current_prompt = ". ".join(self.semantic_categories) + "."  # str
+        rospy.loginfo(f"Reloaded semantic categories: {self.semantic_categories}")
+        rospy.loginfo(f"Current prompt: {self.current_prompt}")
+
+    def rewrite_semantic_categories(self):
+        with open(self.semantic_categories_json_path, "w") as f:
+            json.dump({"categories": self.semantic_categories}, f, indent=4)
+        self.reload_semantic_categories()
 
     def sync_sub_callback(self, img_msg, depth_msg, camera_info_msg):
         """同步订阅回调"""
@@ -130,33 +146,20 @@ class SemanticMapGenerator:
         try:
             # CASE 1: 直接赋值操作 =
             if req.data.startswith("="):
-                new_prompt = req.data[1:].strip()  # 移除=号和首尾空格
-                self.current_prompt = new_prompt
-                rospy.loginfo(f"[Prompt SET] => {self.current_prompt}")
+                new_prompt = req.data.strip()  # 移除尾空格
+                matches = re.findall(r"\b\w+\b", new_prompt)
+                self.semantic_categories = matches
+                self.rewrite_semantic_categories()
                 return UpdatePromptResponse(
                     success=True, message=f"Prompt SET: {self.current_prompt}"
                 )
 
             # CASE 2: 追加操作 +
             elif req.data.startswith("+"):
-                append_str = req.data[1:].strip()  # 移除+号和首尾空格
-
-                # 空内容检查
-                if not append_str:
-                    rospy.logwarn("Empty append content")
-                    return UpdatePromptResponse(
-                        success=False, message="Append content cannot be empty"
-                    )
-
-                # 智能空格拼接
-                if self.current_prompt:
-                    if not self.current_prompt.endswith(" "):
-                        append_str = " " + append_str
-                    self.current_prompt += append_str
-                else:
-                    self.current_prompt = append_str
-
-                rospy.loginfo(f"[Prompt APPEND] => {self.current_prompt}")
+                append_str = req.data.strip()
+                matches = re.findall(r"\b\w+\b", append_str)
+                self.semantic_categories += matches
+                self.rewrite_semantic_categories()
                 return UpdatePromptResponse(
                     success=True,
                     message=f"Appended: {append_str}, current prompt: {self.current_prompt}",
@@ -170,7 +173,7 @@ class SemanticMapGenerator:
                     message="Invalid syntax. Start with '=' to SET or '+' to APPEND.\n"
                     "Example:\n"
                     "  = chair. table.\n"
-                    "  + lamp. book.",
+                    "  + book.",
                 )
 
         except Exception as e:
