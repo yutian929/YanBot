@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 import rospy
+import ast
 import numpy as np
 from sensor_msgs.msg import PointCloud2, PointField
 from std_msgs.msg import Header
@@ -17,7 +18,7 @@ class SemanticMapManager:
 
         # 数据库配置
         self.db_path = rospy.get_param("~db_path", "semantic_map.db")
-        self.renew_db = rospy.get_param("~renew_db", "False")
+        self.renew_db = rospy.get_param("~renew_db", False)
         self.last_seen_imgs_dir = rospy.get_param(
             "~last_seen_imgs_dir", "last_seen_imgs"
         )
@@ -48,14 +49,29 @@ class SemanticMapManager:
         )
         self.bbox_pub = rospy.Publisher(topic_bbox_markers, MarkerArray, queue_size=10)
         ## BBox可视化参数
-        self.bbox_color = rospy.get_param("~bbox_color", [0.0, 1.0, 0.0])
+        bbox_colora_str = rospy.get_param("~bbox_colora", "[0.0, 1.0, 0.0, 0.5]")
+        try:
+            bbox_colora = ast.literal_eval(bbox_colora_str)
+            # 验证数据类型和长度
+            if not (
+                isinstance(bbox_colora, list)
+                and len(bbox_colora) == 4
+                and all(isinstance(x, float) for x in bbox_colora)
+            ):
+                raise ValueError
+        except (SyntaxError, ValueError) as e:
+            rospy.logwarn(
+                "Invalid bbox_color %s, using default [0.0, 1.0, 0.0, 0.5]. Error: %s",
+                bbox_colora_str,
+                e,
+            )
+            bbox_colora = [0.0, 1.0, 0.0, 0.5]  # 默认绿色， Alpha=0.5
+        self.bbox_color = bbox_colora[:3]
+        self.bbox_alpha = bbox_colora[3]
         self.bbox_line_width = rospy.get_param("~bbox_line_width", 0.01)
-        self.bbox_alpha = rospy.get_param("~bbox_alpha", 0.5)
-        self.show_bbox = rospy.get_param("~show_bbox", "True")
-        if type(self.show_bbox) is str:
-            self.show_bbox = self.show_bbox.lower() == "true"
+        self.show_bbox = rospy.get_param("~show_bbox", True)
 
-        rospy.loginfo("Semantic map manager node initialized complete.")
+        rospy.loginfo("semantic_map_manager_node initialized complete.")
 
     def update_db(
         self, category, bbox, count, x_list, y_list, z_list, rgb_list, cv_image

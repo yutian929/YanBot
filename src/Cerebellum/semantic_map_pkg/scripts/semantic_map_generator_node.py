@@ -57,6 +57,10 @@ class SemanticMapGenerator:
         self.tf_listener = TransformListener(self.tf_buffer)
 
         # 同步订阅
+        self.camera_link_father = rospy.get_param("~camera_link_father", "map")
+        self.camera_link_child = rospy.get_param(
+            "~camera_link_child", "camera_color_optical_frame"
+        )
         ts = ApproximateTimeSynchronizer(
             [image_sub, depth_sub, camera_info_sub], queue_size=5, slop=0.05
         )
@@ -99,7 +103,7 @@ class SemanticMapGenerator:
         timer_duration = rospy.get_param("~timer_duration", 1.0)
         rospy.Timer(rospy.Duration(timer_duration), self.timer_callback)
 
-        rospy.loginfo("semantic_map_generator_node initialization complete.")
+        rospy.loginfo("semantic_map_generator_node initialized complete.")
 
     def reload_semantic_categories(self):
         self.semantic_categories = json.load(
@@ -108,8 +112,6 @@ class SemanticMapGenerator:
             "categories"
         ]  # list
         self.current_prompt = ". ".join(self.semantic_categories) + "."  # str
-        rospy.loginfo(f"Reloaded semantic categories: {self.semantic_categories}")
-        rospy.loginfo(f"Current prompt: {self.current_prompt}")
 
     def rewrite_semantic_categories(self):
         with open(self.semantic_categories_json_path, "w") as f:
@@ -123,8 +125,8 @@ class SemanticMapGenerator:
 
                 # 查询时间同步的TF变换
                 transform = self.tf_buffer.lookup_transform(
-                    "map",
-                    "camera_color_optical_frame",  # 使用光学坐标系
+                    self.camera_link_father,
+                    self.camera_link_child,  # 使用光学坐标系
                     img_msg.header.stamp,  # 使用图像时间戳
                     rospy.Duration(0.1),
                 )

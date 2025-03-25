@@ -1,0 +1,11 @@
+<launch>
+  <!-- Get environment variables -->
+  <arg name="venv" default="/usr/bin/python" doc="Path to llm python environment."/>
+
+  <node name="llm_node" pkg="llm_pkg" type="llm_node.py" launch-prefix = "$(arg venv)" output="screen" >
+    <param name="llm_types_path" type="str" value="$(env YANBOT_WS)/src/Brain/llm_pkg/scripts/llm_types.json" />
+    <param name="service_llm_chat" type="str" value="llm_chat" />
+    <param name="service_llm_reason" type="str" value="llm_reason" />
+  </node>
+
+</launch>

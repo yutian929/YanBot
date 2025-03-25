@@ -25,8 +25,6 @@ class SemanticMapDatabase:
         self.last_seen_imgs_max = last_seen_imgs_max
         if not os.path.exists(self.last_seen_imgs_dir):
             os.makedirs(self.last_seen_imgs_dir)
-        if type(renew_db) is str:
-            renew_db = renew_db.lower() == "true"
         if renew_db:
             self._renew_db()
         self.lock = threading.Lock()

@@ -25,10 +25,12 @@ class SemanticMapGuide:
             self.db_path, self.last_seen_imgs_dir, renew_db=False
         )
         # CLIP匹配器
-        self.clip_matcher = CLIPMatcher("ViT-B/16")
-        self.semantic_categories_json_path = os.path.join(
-            os.path.dirname(__file__), "semantic_categories.json"
+        clip_matcher_model = rospy.get_param("~clip_matcher_model", "ViT-B/16")
+        self.clip_matcher = CLIPMatcher(clip_matcher_model)
+        self.semantic_categories_json_path = rospy.get_param(
+            "~semantic_categories_json_path", "semantic_categories.json"
         )
+        self.reload_semantic_categories()
         # ROS配置
         ## opencv
         self.bridge = CvBridge()
@@ -45,11 +47,14 @@ class SemanticMapGuide:
         self.llm_reason_client = rospy.ServiceProxy("llm_reason", LLMChat)
         rospy.loginfo("LLM service initialized complete.")
         ## Guide服务
+        service_guide_server = rospy.get_param(
+            "~service_guide_server", "semantic_map_guide"
+        )
         self.guide_server = rospy.Service(
-            "semantic_map_guide", Guide, self.guide_callback
+            service_guide_server, Guide, self.guide_callback
         )
 
-        rospy.loginfo("Semantic map guide node initialized complete.")
+        rospy.loginfo("semantic_map_guide_node initialized complete.")
         # self.debug()
 
     def debug(self):
@@ -64,6 +69,11 @@ class SemanticMapGuide:
             )
             if best_object:
                 rospy.loginfo(f"Best object: {best_object}")
+
+    def reload_semantic_categories(self):
+        self.semantic_categories = json.load(
+            open(self.semantic_categories_json_path, "r")
+        )["categories"]
 
     def get_base_pose(self):
         """
@@ -140,10 +150,8 @@ class SemanticMapGuide:
         通过语言描述查找语义对象
         返回匹配度最高的的那个语义对象
         """
-        semantic_categories = json.load(open(self.semantic_categories_json_path, "r"))
-        semantic_categories = semantic_categories["categories"]
-
-        if category in semantic_categories:
+        self.reload_semantic_categories()
+        if category in self.semantic_categories:
             label_img_paths = self.database.get_img_paths_by_category(category)
             if label_img_paths:
                 best_label = None
@@ -163,11 +171,8 @@ class SemanticMapGuide:
     def guide_callback(self, req):
         try:
             cmd = req.cmd  # 1.找一个在桌子上的苹果 2.找一个苹果
-            semantic_categories = json.load(
-                open(self.semantic_categories_json_path, "r")
-            )
-            semantic_categories = semantic_categories["categories"]
-            content = f"以下是语义对象列表：{semantic_categories}。用户的指令是：{cmd}"
+            self.reload_semantic_categories()
+            content = f"以下是语义对象列表：{self.semantic_categories}。用户的指令是：{cmd}"
             llm_chat_req = LLMChatRequest(
                 type="find_semantic_object_chat", content=content
             )
