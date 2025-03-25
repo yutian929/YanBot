@@ -28,7 +28,7 @@ class SemanticMapGenerator:
         # 初始化参数
         self.current_prompt = rospy.get_param(
             "~default_prompt",
-            "keyboard. mouse. cellphone. earphone. laptop. computer. water bottle. plant. keys. door. chair. ",
+            "pen. cup. tissue. mouse. keyboard. book. cellphone. earphone. keys. bottle. ",
         )
         self.downsample_step = rospy.get_param("~downsample_step", 2)
         self.bridge = CvBridge()
@@ -330,13 +330,21 @@ class SemanticMapGenerator:
 
         for i in range(len(cluster_labels)):
             for j in range(i + 1, len(cluster_labels)):
-                dist = np.linalg.norm(cluster_centers[cluster_labels[i]] - cluster_centers[cluster_labels[j]])
+                dist = np.linalg.norm(
+                    cluster_centers[cluster_labels[i]]
+                    - cluster_centers[cluster_labels[j]]
+                )
                 cluster_distances[i, j] = dist
                 cluster_distances[j, i] = dist
 
         # 6. 检查是否有多个聚类中心且最近距离 > 0.3m
-        if len(cluster_labels) > 1 and np.min(cluster_distances[np.nonzero(cluster_distances)]) > 0.3:
-            rospy.logwarn("Multiple clusters detected with large separation. Keeping the largest one.")
+        if (
+            len(cluster_labels) > 1
+            and np.min(cluster_distances[np.nonzero(cluster_distances)]) > 0.3
+        ):
+            rospy.logwarn(
+                "Multiple clusters detected with large separation. Keeping the largest one."
+            )
 
             # 选择最大的聚类
             largest_cluster_label = max(cluster_sizes, key=cluster_sizes.get)

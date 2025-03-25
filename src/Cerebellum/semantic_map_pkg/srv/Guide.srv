@@ -1,0 +1,10 @@
+# request params
+string cmd  # 找一个在桌子上的苹果
+---
+# response params
+bool success
+string label
+float32[] label_position
+float32[] label_orientation
+float32[] nav_position
+float32[] nav_orientation

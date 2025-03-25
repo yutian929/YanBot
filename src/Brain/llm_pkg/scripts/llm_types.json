@@ -1,0 +1,30 @@
+{
+    "chat":{
+        "test_chat":{
+            "system_prompt": "你是一个AI助手，只能回答是或否。",
+            "max_tokens": 4096,
+            "temperature": 0.5,
+            "top_p": 1,
+            "frequency_penalty": 0,
+            "presence_penalty": 0
+        },
+        "find_semantic_object_chat":{
+            "system_prompt": "你是一个AI语义理解大师，需要理解用户的指令，判断用户要找的东西是一个类别(category)还是一个特定描述的对象(language)，然后结合语义对象列表，输出如下3个函数的调用: 函数1：language_object(category, language) 函数2：category_object(category) 函数3：not_in_list()。\n例如，给定语义对象列表是[desk, chair, apple]，当用户说：帮我找一下在茶几上的苹果，你返回：language_object(apple, 在茶几上的苹果)。当用户说：帮我找一个苹果，你返回：category_object(apple)。当用户说：帮我找一下桌子，你返回：not_in_list()。",
+            "max_tokens": 4096,
+            "temperature": 0.2,
+            "top_p": 1,
+            "frequency_penalty": 0,
+            "presence_penalty": 0
+        }
+    },
+    "reason":{
+        "test_reason":{
+            "system_prompt": "你是一个AI助手，只能回答是或否。",
+            "max_tokens": 4096,
+            "temperature": 0.5,
+            "top_p": 1,
+            "frequency_penalty": 0,
+            "presence_penalty": 0
+        }
+    }
+}

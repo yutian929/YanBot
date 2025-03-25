@@ -9,23 +9,21 @@ import os
 
 class LLMNode:
     def __init__(self):
-        rospy.init_node("llm_service_node", anonymous=True)
+        rospy.init_node("llm_node")
 
         # 初始化LLM实例
         self.chat_llm = LLM("deepseek-ai/DeepSeek-V2.5")
         self.reason_llm = LLM("deepseek-ai/DeepSeek-R1")
         # 问答类型
         self.system_types = json.load(
-            open(os.path.join(os.path.dirname(__file__), "system_types.json"), "r")
+            open(os.path.join(os.path.dirname(__file__), "llm_types.json"), "r")
         )
         self.chat_types = self.system_types["chat"].keys()
         self.reason_types = self.system_types["reason"].keys()
         # 创建服务
-        self.service = rospy.Service(
-            "service_llm_chat", LLMChat, self.handle_llm_chat_request
-        )
+        self.service = rospy.Service("llm_chat", LLMChat, self.handle_llm_chat_request)
         self.service_reason = rospy.Service(
-            "service_llm_reason", LLMChat, self.handle_llm_reason_request
+            "llm_reason", LLMChat, self.handle_llm_reason_request
         )
 
         rospy.loginfo("LLM服务节点已启动")
@@ -41,7 +39,7 @@ class LLMNode:
             type = req.type
             if type not in self.chat_types:
                 rospy.logwarn(f"不支持的问答类型: {type}")
-                type = "simple_chat"
+                type = "test_chat"
             # 构建消息列表
             messages = [
                 {
@@ -65,7 +63,7 @@ class LLMNode:
             type = req.type
             if type not in self.reason_types:
                 rospy.logwarn(f"不支持的推理类型: {type}")
-                type = "simple_reason"
+                type = "test_reason"
             # 构建消息列表
             messages = [
                 {

@@ -384,7 +384,6 @@ class WakeUpNode:
         if self.stream is not None:
             self.stream.stop()
             self.stream.close()
-        rospy.loginfo("唤醒节点已关闭")
 
 
 if __name__ == "__main__":
