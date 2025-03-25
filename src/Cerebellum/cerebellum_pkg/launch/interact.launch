@@ -3,7 +3,6 @@
     <arg name="wakeup_venv" default="/home/$(env USER)/miniconda3/envs/asr/bin/python" doc="唤醒词检测节点的Python环境路径"/>
     <arg name="stt_venv" default="/home/$(env USER)/miniconda3/envs/asr/bin/python" doc="语音识别服务的Python环境路径"/>
     <arg name="tts_venv" default="/home/$(env USER)/miniconda3/envs/tts/bin/python" doc="语音合成服务的Python环境路径"/>
-    <arg name="interact_venv" default="/home/$(env USER)/miniconda3/envs/asr/bin/python" doc="交互测试节点的Python环境路径"/>
 
     <!-- 唤醒词检测节点 -->
     <node name="wakeup_node" 
@@ -41,16 +40,6 @@
       <param name="temperature" type="double" value="0.5" />
       <param name="top_p" type="double" value="0.7" />
       <param name="top_k" type="int" value="20" />
-    </node>
-
-    <!-- 主交互测试节点 -->
-    <node name="interact_test_node" 
-          pkg="cerebellum_pkg" 
-          type="interact_test_node.py"
-          launch-prefix="$(arg interact_venv)"
-          output="screen"
-          required="true">
-      <param name="default_stt_wav_path" type="str" value="$(env YANBOT_WS)/last_heard_audios/stt.wav" />
     </node>
 
 </launch>
