@@ -36,12 +36,14 @@ class WakeUpNode:
 
         # 初始化VAD模型
         vad_model_dir = rospy.get_param("~vad_model_dir", "fsmn-vad")
-        rospy.loginfo(f"正在加载VAD语音活动检测模型: {vad_model_dir}...")
+        rospy.loginfo(
+            f"loading VAD speech activity detection model: {vad_model_dir}..."
+        )
         self.vad_model = AutoModel(model=vad_model_dir, disable_pbar=True)
 
         # 初始化ASR模型
         asr_model_dir = rospy.get_param("~asr_model_dir", "iic/SenseVoiceSmall")
-        rospy.loginfo(f"正在加载ASR语音识别模型: {asr_model_dir}...")
+        rospy.loginfo(f"loading ASR speech recognition model: {asr_model_dir}...")
         self.asr_pipeline = pipeline(
             task=Tasks.auto_speech_recognition,
             model=asr_model_dir,
@@ -74,7 +76,7 @@ class WakeUpNode:
 
         self.stream = None  # 添加stream属性
 
-        rospy.loginfo("wakeup_node Started")
+        rospy.loginfo("wakeup_node initialized complete.")
 
     def find_similar_substrings(self, target, long_string, threshold=0.7):
         """

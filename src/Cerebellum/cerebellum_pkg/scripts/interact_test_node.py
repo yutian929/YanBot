@@ -39,7 +39,7 @@ class InterActTestNode:
         self.recording = []
         self.is_recording = False
 
-        rospy.loginfo("语音交互测试节点初始化完成")
+        rospy.loginfo("interact_test_node initialized complete.")
 
     def wakeup_callback(self, msg):
         """唤醒消息回调处理"""

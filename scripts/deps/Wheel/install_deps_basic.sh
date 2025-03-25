@@ -70,14 +70,24 @@ sudo apt install ros-noetic-robot-pose-ekf
 check_success
 
 
-ws_path=$YANBOT_WS
-echo "Installing AstraSDK, SDK should be in $ws_path/thirdparties/AstraSDK"
-cd thirdparties/AstraSDK/
+mkdir -p $YANBOT_WS/thirdparties/
+cd $YANBOT_WS/thirdparties/
+check_success
+
+if [ -d "AstraSDK" ]; then
+    echo "AstraSDK directory already exists. Skipping clone."
+else
+    echo "Cloning AstraSDK..."
+    git clone https://github.com/yutian929/YanBot-AstraSDK.git AstraSDK
+    check_success
+fi
+cd AstraSDK
 sudo bash install/install.sh
 check_success
+
 # Assuming ASTRA_SDK is in the workspace
-echo "export ASTRA_SDK_INCLUDE=$ws_path/thirdparties/AstraSDK/include" >> ~/.bashrc
-echo "export ASTRA_SDK_LIB=$ws_path/thirdparties/AstraSDK/lib" >> ~/.bashrc
+echo "export ASTRA_SDK_INCLUDE=$YANBOT_WS/thirdparties/AstraSDK/include" >> ~/.bashrc
+echo "export ASTRA_SDK_LIB=$YANBOT_WS/thirdparties/AstraSDK/lib" >> ~/.bashrc
 source ~/.bashrc
 check_success
 cd ../
