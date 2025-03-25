@@ -5,6 +5,14 @@
     <!-- 依赖：interact (wakeup, stt, tts) -->
     <include file="$(find cerebellum_pkg)/launch/interact.launch"/>
 
-    
+    <!-- 主交互测试节点 -->
+    <node name="test_semantic_map_node" 
+          pkg="cerebellum_pkg" 
+          type="test_semantic_map_node.py"
+          launch-prefix="/usr/bin/python"
+          output="screen"
+          required="true">
+      <param name="default_stt_wav_path" type="str" value="$(env YANBOT_WS)/last_heard_audios/stt.wav" />
+    </node>
 
 </launch>

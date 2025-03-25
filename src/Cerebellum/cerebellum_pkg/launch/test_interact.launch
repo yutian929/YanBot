@@ -6,9 +6,9 @@
     <include file="$(find cerebellum_pkg)/launch/interact.launch"/>
 
     <!-- 主交互测试节点 -->
-    <node name="interact_test_node" 
+    <node name="test_interact_node" 
           pkg="cerebellum_pkg" 
-          type="interact_test_node.py"
+          type="test_interact_node.py"
           launch-prefix="$(arg interact_venv)"
           output="screen"
           required="true">

@@ -22,6 +22,13 @@ class SemanticMapManager:
         self.last_seen_imgs_dir = rospy.get_param(
             "~last_seen_imgs_dir", "last_seen_imgs"
         )
+        rospy.loginfo(f"setting semantic map dataset:")
+        rospy.loginfo(f"* db path = {self.db_path}")
+        rospy.loginfo(f"* last_seen_imgs_dir = {self.last_seen_imgs_dir}")
+        if self.renew_db:
+            rospy.logwarn(f"* renew_db = {self.renew_db}")
+        else:
+            rospy.loginfo(f"* renew_db = {self.renew_db}")
         self.database = SemanticMapDatabase(
             self.db_path, self.last_seen_imgs_dir, 3, self.renew_db
         )

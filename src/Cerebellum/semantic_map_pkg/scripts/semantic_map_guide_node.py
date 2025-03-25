@@ -184,39 +184,59 @@ class SemanticMapGuide:
                     f"LLM chat response: {llm_chat_res.response}"
                 )  # 函数1：language_object(category, language) 函数2：category_object(category) 函数3：not_in_list()
                 if "not_in_list" in llm_chat_res.response:
-                    rospy.logerr("No semantic object found.")
-                    return GuideResponse(success=False, label="")
+                    return GuideResponse(
+                        success=False, message="not_in_list.", label=""
+                    )
                 if "language_object" in llm_chat_res.response:
                     category, language = re.findall(
                         r"language_object\((.*), (.*)\)", llm_chat_res.response
                     )[0]
                     label = self.find_semantic_object_by_language(category, language)
                     if label:
-                        rospy.loginfo(f"Semantic object found: {label}")
-                        return GuideResponse(success=True, label=label)
+                        return GuideResponse(
+                            success=True,
+                            message=f"Semantic object found: {label}",
+                            label=label,
+                        )
                     else:
-                        rospy.logerr("No semantic object found by language.")
-                        return GuideResponse(success=False, label="")
+                        return GuideResponse(
+                            success=False,
+                            message="No semantic object found by language.",
+                            label="",
+                        )
                 elif "category_object" in llm_chat_res.response:
                     category = re.findall(
                         r"category_object\((.*)\)", llm_chat_res.response
                     )[0]
                     label = self.find_semantic_object_by_category(category)
                     if label:
-                        rospy.loginfo(f"Semantic object found: {label}")
-                        return GuideResponse(success=True, label=label)
+                        return GuideResponse(
+                            success=True,
+                            message=f"Semantic object found: {label}",
+                            label=label,
+                        )
                     else:
-                        rospy.logerr("No semantic object found by category.")
-                        return GuideResponse(success=False, label="")
+                        return GuideResponse(
+                            success=False,
+                            message="No semantic object found by category.",
+                            label="",
+                        )
                 else:
-                    rospy.logerr("llm chat response format error.")
-                    return GuideResponse(success=False, label="")
+                    return GuideResponse(
+                        success=False,
+                        message="llm chat response format error.",
+                        label="",
+                    )
             else:
-                rospy.logerr(f"LLM chat error: {llm_chat_res.response}")
-                return GuideResponse(success=False, label="")
+                return GuideResponse(
+                    success=False,
+                    message=f"LLM chat error: {llm_chat_res.response}",
+                    label="",
+                )
         except Exception as e:
-            rospy.logerr(f"Guide callback error: {str(e)}")
-            return GuideResponse(success=False, label="")
+            return GuideResponse(
+                success=False, message=f"Guide callback error: {str(e)}", label=""
+            )
 
 
 if __name__ == "__main__":

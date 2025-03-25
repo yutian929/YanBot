@@ -8,15 +8,14 @@ import json
 from wakeup_pkg.msg import WakeUp
 from std_srvs.srv import SetBool
 from stt_pkg.srv import STT, STTResponse
-from tts_pkg.srv import TTS, TTSResponse
-import subprocess
+from semantic_map_pkg.srv import Guide, GuideRequest
 
 
-class InterActTestNode:
+class TestSemanticMapNode:
     """语音交互测试节点"""
 
     def __init__(self):
-        rospy.init_node("interact_test_node")
+        rospy.init_node("test_semantic_map_node")
 
         # 获取参数
         self.save_path = rospy.get_param("~default_stt_wav_path", "stt.wav")
@@ -25,11 +24,13 @@ class InterActTestNode:
         rospy.wait_for_service("wakeup_control")
         self.wakeup_ctrl = rospy.ServiceProxy("wakeup_control", SetBool)
 
-        # 初始化STT/TTS服务客户端
+        # 初始化STT服务客户端
         rospy.wait_for_service("srv_stt")
         self.stt_client = rospy.ServiceProxy("srv_stt", STT)
-        rospy.wait_for_service("srv_tts")
-        self.tts_client = rospy.ServiceProxy("srv_tts", TTS)
+
+        # 初始化Guide服务客户端
+        rospy.wait_for_service("semantic_map_guide")
+        self.guide_client = rospy.ServiceProxy("semantic_map_guide", Guide)
 
         # 订阅唤醒话题
         rospy.Subscriber("wakeup", WakeUp, self.wakeup_callback)
@@ -39,7 +40,7 @@ class InterActTestNode:
         self.recording = []
         self.is_recording = False
 
-        rospy.loginfo("interact_test_node initialized complete.")
+        rospy.loginfo("test_semantic_map_node initialized complete.")
 
     def wakeup_callback(self, msg):
         """唤醒消息回调处理"""
@@ -97,10 +98,10 @@ class InterActTestNode:
                 if stt_result["status"] != "success":
                     raise Exception(f"STT失败: {stt_result.get('message', '未知错误')}")
 
-                # 调用TTS服务
-                tts_result = self.handle_tts(stt_result["asr_result"])
-                if tts_result["status"] != "success":
-                    raise Exception(f"TTS失败: {tts_result.get('message', '未知错误')}")
+                # 调用Guide服务
+                cmd = stt_result["asr_result"]
+                if not self.handle_guide(cmd):
+                    raise Exception("语义地图导航失败")
 
             except Exception as e:
                 rospy.logerr(f"处理流程异常: {str(e)}")
@@ -126,52 +127,38 @@ class InterActTestNode:
         except Exception as e:
             return {"status": "error", "message": str(e)}
 
-    def handle_tts(self, text):
-        """处理TTS语音合成及播放"""
+    def handle_guide(self, cmd: str):
+        """处理语义地图导航服务"""
         try:
-            # 构建TTS请求
-            tts_req = {"text": text}
-            response = self.tts_client(json.dumps(tts_req))
+            # 构建服务请求
+            req = GuideRequest()
+            req.cmd = cmd
 
-            # 解析响应
-            result = json.loads(response.output_json)
-            if result["status"] == "success":
-                rospy.loginfo(f"语音合成成功: {result['file_path']}")
+            # 调用服务
+            response = self.guide_client(req)
 
-                # 新增播放功能
-                self.play_audio(result["file_path"])
+            # 处理响应
+            if response.success:
+                rospy.loginfo(f"导航信息获取成功！{response.message}")
+                rospy.loginfo(f"目标物体: {response.label}")
+                rospy.loginfo(f"物体位置: {response.label_position}")
+                rospy.loginfo(f"导航目标朝向: {response.nav_orientation}")
+                return True
+            else:
+                rospy.logwarn(f"语义地图服务返回失败, {response.message}")
+                return False
 
-            return result
-        except Exception as e:
-            return {"status": "error", "message": str(e)}
-
-    def play_audio(self, file_path):
-        """使用aplay播放音频文件"""
-        try:
-            # 执行aplay命令
-            cmd = ["aplay", "-q", file_path]  # -q 参数静默输出
-            result = subprocess.run(
-                cmd,
-                check=True,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-                text=True,
-            )
-
-            rospy.loginfo(f"音频播放成功: {file_path}")
-            return True
-        except subprocess.CalledProcessError as e:
-            error_msg = f"播放失败: {e.stderr.strip()}"
-            rospy.logerr(error_msg)
+        except rospy.ServiceException as e:
+            rospy.logerr(f"服务调用失败: {e}")
             return False
         except Exception as e:
-            rospy.logerr(f"播放异常: {str(e)}")
+            rospy.logerr(f"处理导航数据异常: {str(e)}")
             return False
 
 
 if __name__ == "__main__":
     try:
-        node = InterActTestNode()
+        node = TestSemanticMapNode()
         rospy.spin()
     except rospy.ROSInterruptException:
         pass
