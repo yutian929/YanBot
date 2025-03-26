@@ -6,9 +6,13 @@
         "mouse",
         "keyboard",
         "book",
-        "cellphone",
+        "phone",
         "earphone",
         "keys",
-        "bottle"
+        "bottle",
+        "plant",
+        "calendar",
+        "monitor",
+        "Thermos Cup"
     ]
 }

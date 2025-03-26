@@ -284,6 +284,13 @@ class WakeUpNode:
                         latency="low",
                     )
                     self.stream.start()
+                    # rospy.loginfo("麦克风已打开")
+                    # # 重新打开后清空几个块的数据，避免缓冲区中的噪声导致误触发
+                    # for _ in range(5):  # 清空前5个数据块
+                    #     _, _ = self.stream.read(self.frame_length)
+                    # # 重置音频缓冲区
+                    # self.audio_buffer = np.array([], dtype=np.int16)
+                    # rospy.loginfo("麦克风重新初始化完成")
 
                 # 读取音频数据
                 indata, overflowed = self.stream.read(self.frame_length)
