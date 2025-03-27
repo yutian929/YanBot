@@ -69,6 +69,14 @@ check_success
 sudo apt install ros-noetic-robot-pose-ekf
 check_success
 
+sudo apt-get install ros-noetic-joy
+check_success
+
+sudo apt-get install ros-noetic-gmapping
+check_success
+
+sudo apt-get install ros-noetic-rtabmap-ros
+check_success
 
 mkdir -p $YANBOT_WS/thirdparties/
 cd $YANBOT_WS/thirdparties/
@@ -90,7 +98,16 @@ echo "export ASTRA_SDK_INCLUDE=$YANBOT_WS/thirdparties/AstraSDK/include" >> ~/.b
 echo "export ASTRA_SDK_LIB=$YANBOT_WS/thirdparties/AstraSDK/lib" >> ~/.bashrc
 source ~/.bashrc
 check_success
-cd ../
+cd ../CMake Error at /opt/ros/noetic/share/catkin/cmake/catkinConfig.cmake:83 (find_package):
+  Could not find a package configuration file provided by "joy" with any of
+  the following names:
+
+    joyConfig.cmake
+    joy-config.cmake
+
+  Add the installation prefix of "joy" to CMAKE_PREFIX_PATH or set "joy_DIR"
+  to a directory containing one of the above files.  If "joy" provides a
+  separate development package or SDK, be sure it has been installed.
 
 # Install libuvc
 echo "Compiling libuvc"
