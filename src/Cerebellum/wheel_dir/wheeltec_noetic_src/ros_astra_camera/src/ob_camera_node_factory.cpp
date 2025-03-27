@@ -55,7 +55,6 @@ OBCameraNodeFactory::~OBCameraNodeFactory() {
   openni::OpenNI::shutdown();
 }
 
-
 void OBCameraNodeFactory::init() {
   ROS_INFO_STREAM("Initializing OBCameraNodeFactory...");
   astra_device_lock_shm_id_ = shm_open(DEFAULT_LOCK_FILE.c_str(), O_RDWR | O_CREAT, 0777);
@@ -244,7 +243,7 @@ OniLogSeverity OBCameraNodeFactory::getLogLevelFromString(const std::string& lev
 
 void OBCameraNodeFactory::checkConnectionTimer() {
   if (!device_connected_) {
-    ROS_INFO_STREAM("wait for device " << serial_number_ << " to be connected");
+    ROS_INFO_STREAM("wait for device [obcam] " << serial_number_ << " to be connected");
   }
 }
 

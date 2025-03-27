@@ -1,8 +1,9 @@
 <launch>
-    <arg name="camera_mode"  default="Astra_S" 
+    <arg name="camera_mode"  default="realsense_D435" 
     doc="opt: Astra_S, Astra_Pro, Astra_Pro_Plus, Astra_Dabai,Astra_Gemini,
               RgbCam,
-              Astra_S+RgbCam,Astra_Pro+RgbCam,Astra_Pro_Plus+RgbCam,Astra_Dabai+RgbCam,Astra_Gemini+RgbCam"/>
+              Astra_S+RgbCam,Astra_Pro+RgbCam,Astra_Pro_Plus+RgbCam,Astra_Dabai+RgbCam,Astra_Gemini+RgbCam,
+              realsense_D435"/>
 
 <!-- false：启动深度相机   true：除astra-s相机外，优先启动RgbCam相机，没有RgbCam相机的启动深度相机的RGB功能 -->
     <arg name="if_usb_cam" default="false"/>
@@ -71,6 +72,37 @@
     <!-- 启动奥比中光Gemini Pro相机 -->
     <group if="$(eval camera_mode == 'Astra_Gemini' or camera_mode == 'Astra_Gemini+RgbCam')">
         <include unless="$(eval if_usb_cam)" file="$(find astra_camera)/launch/gemini.launch"/>
+    </group>
+
+    <!-- 启动Intel RealSense D435相机 -->
+    <group if="$(eval camera_mode == 'realsense_D435')">
+        <!-- 话题重映射要放在include之前 -->
+        <remap from="/camera/color/image_raw" to="/camera/rgb/image_raw"/>
+        <remap from="/camera/color/camera_info" to="/camera/rgb/camera_info"/>
+        <remap from="/camera/aligned_depth_to_color/image_raw" to="/camera/depth/image_raw"/>
+        <remap from="/camera/aligned_depth_to_color/camera_info" to="/camera/depth/camera_info"/>
+
+        <include file="$(find realsense2_camera)/launch/rs_camera.launch">
+            <!-- 基础图像参数配置 -->
+            <arg name="color_width" value="640"/>
+            <arg name="color_height" value="480"/>
+            <arg name="depth_width" value="640"/>
+            <arg name="depth_height" value="480"/>
+            <arg name="enable_pointcloud" value="true"/>
+            
+            <!-- 启用深度对齐到彩色图像 -->
+            <arg name="align_depth" value="true"/>
+            
+            <!-- 设置较低的帧率以减少数据负载 -->
+            <!-- <arg name="color_fps" value="30"/>
+            <arg name="depth_fps" value="30"/> -->
+            
+            <!-- 启用深度图像后处理滤波器 -->
+            <arg name="filters" value="pointcloud,temporal,spatial"/>
+            
+            <!-- 设置USB串流参数 -->
+            <arg name="enable_sync" value="true"/>
+        </include>
     </group>
 
 
