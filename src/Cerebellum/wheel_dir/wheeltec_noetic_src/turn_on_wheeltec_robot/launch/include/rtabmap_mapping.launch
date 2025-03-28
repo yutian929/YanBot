@@ -17,7 +17,7 @@
       
       <!-- Should be true for not synchronized camera topics 
            (e.g., false for kinectv2, zed, realsense, true for xtion, kinect360)-->
-      <param name="approx_sync"       value="true"/> 
+      <param name="approx_sync"       value="false"/> 
     </node>
 
     <node name="rtabmap" pkg="rtabmap_slam" type="rtabmap" output="screen" args="--delete_db_on_start">
@@ -40,8 +40,19 @@
           <param name="RGBD/AngularUpdate"        type="string" value="0.01"/>
           <param name="RGBD/LinearUpdate"         type="string" value="0.01"/>
           <param name="RGBD/OptimizeFromGraphEnd" type="string" value="false"/>
-          <param name="Grid/FromDepth"            type="string" value="false"/> 
-          <!-- occupancy grid from lidar -->
+          <!-- yutian -->
+          <param name="Grid/FromDepth" value="true"/>  <!-- 启用深度数据生成栅格 -->
+          <param name="Grid/MaxDepth"    value="3.0"/>    <!-- 最大有效深度距离（米） -->
+          <param name="Grid/MinDepth"    value="0.1"/>    <!-- 最小有效深度距离 -->
+          <param name="Grid/3D"        value="false"/> <!-- 保持2D栅格 -->
+          <param name="Grid/RayTracing" value="true"/> <!-- 启用射线追踪填充障碍物 -->
+          <param name="Grid/NormalsSegmentation" value="false"/> <!-- 禁用复杂法线分割 -->
+          <param name="Grid/CellSize"    value="0.05"/>   <!-- 栅格分辨率（与激光雷达一致） -->
+
+          <param name="Grid/FromScan"        value="true"/>  <!-- 同时使用激光数据 -->
+          <param name="Grid/RangeMax" value="5.0"/>
+          <param name="Grid/DepthDecimation" value="2"/>
+
           <param name="Reg/Force3DoF"             type="string" value="true"/>
           <param name="Reg/Strategy"              type="string" value="1"/> <!-- 1=ICP -->
           
