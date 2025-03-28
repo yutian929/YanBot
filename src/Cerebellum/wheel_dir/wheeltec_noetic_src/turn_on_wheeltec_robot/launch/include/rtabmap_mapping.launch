@@ -17,7 +17,7 @@
       
       <!-- Should be true for not synchronized camera topics 
            (e.g., false for kinectv2, zed, realsense, true for xtion, kinect360)-->
-      <param name="approx_sync"       value="false"/> 
+      <param name="approx_sync"       value="false"/>
     </node>
 
     <node name="rtabmap" pkg="rtabmap_slam" type="rtabmap" output="screen" args="--delete_db_on_start">
@@ -42,16 +42,22 @@
           <param name="RGBD/OptimizeFromGraphEnd" type="string" value="false"/>
           <!-- yutian -->
           <param name="Grid/FromDepth" value="true"/>  <!-- 启用深度数据生成栅格 -->
-          <param name="Grid/MaxDepth"    value="3.0"/>    <!-- 最大有效深度距离（米） -->
-          <param name="Grid/MinDepth"    value="0.1"/>    <!-- 最小有效深度距离 -->
+          <param name="Grid/MaxDepth"    value="2.5"/>    <!-- 最大有效深度距离（米） -->
+          <param name="Grid/MinDepth"    value="0.3"/>    <!-- 最小有效深度距离 -->
           <param name="Grid/3D"        value="false"/> <!-- 保持2D栅格 -->
           <param name="Grid/RayTracing" value="true"/> <!-- 启用射线追踪填充障碍物 -->
+          <param name="Grid/EraseRayTracing" value="true"/> <!-- 擦除已通过区域的障碍物 -->
           <param name="Grid/NormalsSegmentation" value="false"/> <!-- 禁用复杂法线分割 -->
           <param name="Grid/CellSize"    value="0.05"/>   <!-- 栅格分辨率（与激光雷达一致） -->
-
-          <param name="Grid/FromScan"        value="true"/>  <!-- 同时使用激光数据 -->
-          <param name="Grid/RangeMax" value="5.0"/>
-          <param name="Grid/DepthDecimation" value="2"/>
+          <param name="Grid/Erode" value="true"/>      <!-- 启用侵蚀 -->
+          <param name="Grid/ErodeIterations" value="1"/> <!-- 侵蚀迭代次数 -->
+          <param name="Grid/ClusterRadius" value="0.2"/> <!-- 障碍物聚类半径 -->
+          <param name="Grid/UnknownSpaceFilling" value="false"/> <!-- 禁止填充未知区域 -->
+          <param name="Grid/DepthDecimation" value="4"/> <!-- 下采样倍数从2提升到4 -->
+          <param name="Grid/FromScan"        value="true"/> <!-- 同时使用激光数据 -->
+          <param name="Grid/RangeMax" value="5.0"/> <!--控制深度传感器和激光雷达数据在栅格地图中的最大有效范围 -->
+          <param name="Grid/ScanOccupancyRatio" value="0.8"/> <!-- 激光占80%权重 -->
+          <param name="Grid/DepthOccupancyRatio" value="0.4"/> <!-- 深度占40%权重 -->
 
           <param name="Reg/Force3DoF"             type="string" value="true"/>
           <param name="Reg/Strategy"              type="string" value="1"/> <!-- 1=ICP -->
@@ -62,3 +68,9 @@
     </node>
   </group>
 </launch>
+
+
+
+<!-- roslaunch rtabmap_ros rtabmapviz.launch \
+  rgbd_image:=/rtabmap/rgbd_image \
+  scan:=/scan -->
