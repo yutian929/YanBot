@@ -25,7 +25,14 @@ import supervision as sv
 
 import concurrent.futures
 import time 
+from scipy.optimize import curve_fit
 
+import matplotlib
+import matplotlib.pyplot as plt
+import matplotlib.colors as mcolors
+matplotlib.use('Agg')  # 设定非GUI后端，避免 Tkinter 问题
+
+import os
 
 
 class SemanticMapGenerator:
@@ -33,10 +40,15 @@ class SemanticMapGenerator:
         rospy.init_node("semantic_map_generator")
 
         self.camera_info = None
-        self.image_cache = {}
+        self.color_image_cache = {}
+        self.depth_raw_cache = {}
 
         self.processing_timestamp = None
         self.processing_image = None
+        self.processing_depth_raw = None
+
+        # 创建一个 Event 对象，用来确保图像标注完成后才进行最终的点云对象生成（由于标注图像是在最后一步才用到，所以一般也不会发生时间问题）
+        self.annotate_finished_event = threading.Event()
 
         self.bridge = CvBridge()
 
@@ -52,19 +64,31 @@ class SemanticMapGenerator:
         # 多线程运行
         self.executor = concurrent.futures.ThreadPoolExecutor(max_workers=4)  # 创建 4 个线程
 
+        ### 由于只需要处理回调一次，不用放进线程池 ###
         # 订阅相机内外参（读取一次即可）
         topic_camera_info_sub = rospy.get_param(
             "~topic_camera_info_sub", "/camera/color/camera_info"
         )
         self.camera_info_sub = rospy.Subscriber(topic_camera_info_sub, CameraInfo, self.read_camera_info,queue_size=2)
 
-        ## 订阅rgb图像（在定时器发布时就存取）
-        # self.image_sub = rospy.Subscriber("color_to_process", Image, self.store_image, queue_size=1)
-        self.image_sub = rospy.Subscriber("color_to_process", Image, lambda msg: self.executor.submit(self.store_image, msg), queue_size=1)
+        ### 线程1 ###
+        # 订阅rgb图像和原始深度图像（在定时器发布时就存取）
+        # self.color_image_sub = rospy.Subscriber("color_to_process", Image, self.store_image, queue_size=1)
+        # self.color_image_sub = rospy.Subscriber("color_to_process", Image, lambda msg: self.executor.submit(self.store_image, msg), queue_size=1)
+        # self.depth_raw_sub = rospy.Subscriber("depth_to_process", Image, self.store_image, queue_size=1)
+        color_image_sub = Subscriber("color_to_process", Image, queue_size=1)
+        depth_raw_sub = Subscriber("depth_to_process", Image, queue_size=1)
+        # 同步回调
+        ts1 = ApproximateTimeSynchronizer(
+            [color_image_sub, depth_raw_sub], queue_size=2, slop=0.005
+        )
+        # ts1.registerCallback(self.store_image)
+        ts1.registerCallback(lambda color_image_msg, depth_raw_msg: self.executor.submit(self.store_image, color_image_msg, depth_raw_msg))
+
 
         # 订阅图像标注信息
-        # self.mask_info_sub = rospy.Subscriber("annotation_info", AnnotationInfo, self.annotate, queue_size=2)
-        self.mask_info_sub = rospy.Subscriber("annotation_info", AnnotationInfo, lambda msg: self.executor.submit(self.annotate, msg), queue_size=2)
+        # self.annotation_info_sub = rospy.Subscriber("annotation_info", AnnotationInfo, self.annotate, queue_size=2)
+        self.annotation_info_sub = rospy.Subscriber("annotation_info", AnnotationInfo, lambda msg: self.executor.submit(self.annotate, msg), queue_size=2)
 
         ## 点云生成的回调
         # 订阅修复后的深度图像
@@ -90,10 +114,7 @@ class SemanticMapGenerator:
             topic_semantic_object_pub, SemanticObject, queue_size=10
         )
 
-
         rospy.loginfo("semantic_map_generator_distributed_node initialization complete.")
-
-
 
     def depth_repaired_show(self, depth_repaired_msg):
         depth = self.bridge.imgmsg_to_cv2(depth_repaired_msg, "passthrough")
@@ -106,54 +127,165 @@ class SemanticMapGenerator:
     def sync_sub_callback(self, depth_repaired_msg, mask_info_msg):
         """接收到修复后的深度图像和掩码信息后进行点云生成"""
         rospy.loginfo("reveice depth_repaired and mask_info")
+        # 获取当前处理图像的时间戳
+        time_stamp = depth_repaired_msg.header.stamp
 
-        # 先查询tf变换
+        # 查询tf变换
         transform = self.tf_buffer.lookup_transform(
                     "map",
                     "camera_color_optical_frame",  # 使用光学坐标系
-                    self.processing_timestamp,  # 使用图像时间戳
+                    time_stamp,  # 使用图像时间戳
                     rospy.Duration(0.005),
                 )
         
+        # 获取原始深度
+        times_tamp = depth_repaired_msg.header.stamp
+        # depth_raw = self.depth_raw_cache[times_tamp.to_sec()]
+        depth_raw = self.depth_raw_cache.get(time_stamp.to_sec(), None)
+        if depth_raw is None:
+            rospy.logwarn(f"Depth data for timestamp {time_stamp.to_sec()} not found.")
+            return  # 或者使用默认值
+
         # 获取修复后的深度
         depth_repaired = self.bridge.imgmsg_to_cv2(depth_repaired_msg, desired_encoding='passthrough')
-
         # 获取掩码
         masks_stacked = self.bridge.imgmsg_to_cv2(mask_info_msg.segmasks, desired_encoding="passthrough")  # 保持原始格式
-        print(masks_stacked.shape)
-        # 掩码格式变换
-        # 根据掩码的维度数确认如何转换格式
+        # 掩码格式变换————根据掩码的维度数确认如何转换格式
         if masks_stacked.ndim == 3:  # 正常情况形状为 (H, W, N) 即有多张掩码  
             masks = np.moveaxis(masks_stacked, -1, 0)  # 从 (H, W, N) 变回 (N, H, W)
         else:  # 形状为 (H, W) 只有一张掩码
             masks = np.expand_dims(masks_stacked, axis=0)  # 变成 (1, H, W)
 
-        # masks_stacked = self.bridge.imgmsg_to_cv2(mask_info_msg.segmasks, desired_encoding="passthrough")  # 保持原始格式
-        # print(masks_stacked.shape)
-        # masks = np.moveaxis(masks_stacked, -1, 0)  # 从 (H, W, N) 变回 (N, H, W)
-        print(masks.shape)
+        start_time = rospy.Time.now()
 
+        # 初始化最终深度图，先填充为修复后的深度
+        final_depth = np.copy(depth_repaired)
+        
+        # 对每张掩码进行处理
+        for mask in masks:
+            # 对掩码部分进行二次深度修复
+            # print(mask.shape)
+            second_depth_repaired = self.second_depth_repair(depth_raw.copy(), depth_repaired.copy(), mask)
+
+            # 仅对掩码部分填充二次修复后的深度
+            final_depth[mask > 0] = second_depth_repaired[mask > 0]
+        
+        # # 将非掩码部分填充为原始修复深度数据
+        # final_depth[final_depth == 0] = depth_repaired[final_depth == 0]
+
+        # 计算深度差异
+        depth_difference = final_depth.astype(np.int32) - depth_raw.astype(np.int32)
+
+        # 限制 depth_difference 在 [-1000, 1000] 之间
+        vmin = -1000
+        vmax = 1000
+        depth_difference = np.clip(depth_difference, vmin, vmax)
+
+        # 可视化深度差异
+        norm = mcolors.TwoSlopeNorm(vmin=vmin, vcenter=0, vmax=vmax)
+        plt.figure(figsize=(8, 6))
+        plt.imshow(depth_difference, cmap='bwr', norm=norm, interpolation='nearest')
+        plt.colorbar()
+        # plt.title("Depth Difference (Estimated - Raw)")
+        # plt.show()
+
+        # 合并掩码并保存掩码图像
+        combined_mask = np.zeros_like(depth_repaired, dtype=np.uint8)  # 初始化掩码图像
+        for mask in masks:
+            combined_mask = np.maximum(combined_mask, mask.astype(np.uint8) * 255)  # 合并所有掩码
+
+        end_time = rospy.Time.now()
+        depth_repair_time = (end_time - start_time).to_sec()*1000
+        rospy.loginfo(f"second depth repair time: {depth_repair_time:.1f} ms")
+
+        outdir1 = '/home/zjy/vis_depth_map/mask'
+        outdir2 = '/home/zjy/vis_depth_map/diff'
+        os.makedirs(outdir1, exist_ok=True)
+        os.makedirs(outdir2, exist_ok=True)
+        filename = f"{time_stamp.to_sec():.9f}.png"
+
+        # 保存掩码图像，方便可视化
+        mask_filename = os.path.join(outdir1, filename)
+        cv2.imwrite(mask_filename, combined_mask)
+
+        # 导出深度差异（plt绘制结果，保存为为图片）
+        plt_file_name = os.path.join(outdir2, filename)
+        plt.savefig(plt_file_name, dpi=300, bbox_inches='tight')
+
+
+
+
+
+        # 获取每个物体的类别标签和置信度
         labels = mask_info_msg.labels
         scores = mask_info_msg.scores
 
-        # 生成当前帧语义对象
-        for mask, label, score in zip(masks, labels, scores):
-            semantic_obj = self.create_semantic_object(
-                mask,
-                label,
-                score,
-                self.annotated_image,
-                self.processing_image,
-                depth_repaired,
-                self.camera_info,
-                transform,
-            )
-            if semantic_obj is not None:
-                self.semantic_object_pub.publish(semantic_obj)
+        # # 进行掩码部分的二次深度修复
+        # for mask, label, score in zip(masks, labels, scores):
+        #     second_depth_repaired = self.second_depth_repair(depth_raw, depth_repaired, mask)
 
-        if self.processing_timestamp.to_sec() in self.image_cache:
-            rospy.loginfo("del processed image")
-            del self.image_cache[self.processing_timestamp.to_sec()]
+
+            
+
+        ## 先对掩码部分的深度进行二次修复（主要是比例缩放），确保深度与原深度没有距离偏差
+
+
+        # print(masks.shape)
+        # start_time = rospy.Time.now()
+        # second_depth_repaired = self.second_depth_repair(depth_raw, depth_repaired, masks[0])
+        # end_time = rospy.Time.now()
+        # depth_repair_time = (end_time - start_time).to_sec()*1000
+        # rospy.loginfo(f"second depth repair time: {depth_repair_time:.1f} ms")
+
+        # rospy.loginfo("second depth repair finished")
+
+
+    def second_depth_repair(self, depth_raw, depth_repaired, mask, threshold=500, min_valid_points=50):
+        # 1. 使用掩码选择有效区域的深度
+        valid_mask = mask > 0  # 掩码部分，确保有效区域
+
+        valid_depth_raw = depth_raw[valid_mask].astype(np.float32)  # 选择所有掩码为非零部分的原始深度
+        valid_depth_repaired = depth_repaired[valid_mask].astype(np.float32)  # 选择所有掩码为非零部分的修复深度
+        
+        # 2. 去掉原始深度为0的部分
+        valid_depth_mask = valid_depth_raw > 0  # 筛选原始深度非零的部分
+        valid_depth_raw = valid_depth_raw[valid_depth_mask]
+        valid_depth_repaired = valid_depth_repaired[valid_depth_mask]  # 同步选择修复后的深度
+        
+        # 3. 去掉修复深度与原始深度差值绝对值超过500的部分
+        diff = np.abs(valid_depth_raw - valid_depth_repaired)
+        valid_depth_raw = valid_depth_raw[diff <= threshold]
+        valid_depth_repaired = valid_depth_repaired[diff <= threshold]
+
+        def inverse_depth_model(x, a, b):
+            return a * x + b
+
+        # 4. 如果剩下的有效点数量大于阈值，进行拟合
+        if len(valid_depth_raw) >= min_valid_points:
+            # # 使用线性拟合得到最贴合的修复深度
+            # (a_opt, b_opt), _ = curve_fit(inverse_depth_model, valid_depth_repaired, valid_depth_raw, p0=[1, 0])
+            # fitted_depth = a_opt * depth_repaired + b_opt
+
+            # 使用 np.linalg.lstsq 进行线性拟合
+            # X_valid = valid_depth_repaired - np.mean(valid_depth_repaired)
+            X_valid = valid_depth_repaired
+            D_valid = valid_depth_raw
+
+            # 构造设计矩阵 X_stack
+            X_stack = np.vstack([X_valid, np.ones_like(X_valid)]).T  # X_valid 和常数项（1）构成设计矩阵
+
+            # 求解最小二乘法
+            params, residuals, rank, s = np.linalg.lstsq(X_stack, D_valid, rcond=None)
+
+            # 从返回的参数中获取拟合参数 A 和 b
+            A, b = params
+
+            fitted_depth = A * (depth_repaired) + b
+        else:
+            # 5. 如果有效点过少，直接使用首次修复的深度
+            fitted_depth = depth_repaired
+
+        return fitted_depth
 
 
     def read_camera_info(self, camera_info_msg):
@@ -161,26 +293,24 @@ class SemanticMapGenerator:
         self.camera_info = camera_info_msg
         # 取消订阅
         self.camera_info_sub.unregister() 
-        rospy.loginfo("Unsubscribed from /camera/color/camera_info")
+        rospy.loginfo("camera_info saved, Unsubscribed from /camera/color/camera_info")
 
-    def store_image(self, image_msg):
-        time_stamp = image_msg.header.stamp.to_sec()
-        image = self.bridge.imgmsg_to_cv2(image_msg, "bgr8")
-        self.image_cache[time_stamp] = image
-        rospy.loginfo("receive rgb image")
+    def store_image(self, color_image_msg, depth_raw_msg):
+        ## 在定时器发布时存取rgb图像和原始深度
+        time_stamp = color_image_msg.header.stamp.to_sec()
+        color_image = self.bridge.imgmsg_to_cv2(color_image_msg, "bgr8")
+        depth_raw = self.bridge.imgmsg_to_cv2(depth_raw_msg, "passthrough")
+        self.color_image_cache[time_stamp] = color_image
+        self.depth_raw_cache[time_stamp] = depth_raw
+        rospy.loginfo("receive color image and raw depth ")
 
     def annotate(self, annotation_info_msg):
-        # rospy.loginfo("annotate image start")
-
-        # # 测试消息发布到接收的时间
-        # stored_time = rospy.get_param("/current_time")
-        # now_time = rospy.Time.now().to_sec()
-        # message_time = (now_time - stored_time)*1000
-        # print("message transmission time (ms):", message_time)
-
+        ## 进行图像标注
         # 获取消息中记录的原图像的时间戳，从而根据时间戳找到对应的原rgb图像
+        start_time = rospy.Time.now()
+
         self.processing_timestamp = annotation_info_msg.header.stamp
-        self.processing_image = self.image_cache[self.processing_timestamp.to_sec()]
+        self.processing_image = self.color_image_cache[self.processing_timestamp.to_sec()]
 
         class_id = np.array(annotation_info_msg.class_id)
         labels = annotation_info_msg.labels
@@ -192,29 +322,22 @@ class SemanticMapGenerator:
         # annotate image with detections
         box_annotator = sv.BoxAnnotator()
         label_annotator = sv.LabelAnnotator()
-
         detections = sv.Detections(boxes, class_id=class_id)
         annotated_image = box_annotator.annotate(scene=self.processing_image.copy(), detections=detections)
         annotated_image = label_annotator.annotate(scene=annotated_image, detections=detections, labels=labels)
 
         # 作为类的成员变量，供点云生成使用
         self.annotated_image = annotated_image
+        self.annotate_finished_event.set()  # 设置标注已完成的事件，通知 点云对象生成 继续执行
 
-        rospy.loginfo("annotate image")
+        end_time = rospy.Time.now()
+        time = (end_time - start_time).to_sec()*1000
+        rospy.loginfo(f"annotate image time: {time:.1f} ms")
 
-        # # 测试多线程
-        # time.sleep(10)
-        # rospy.loginfo("complete sleep 10s")
-
+        # rospy.loginfo("annotate image finished")
         # # 显示标注结果
         # cv2.imshow("Annotated Image", annotated_image)  
         # cv2.waitKey(1)  # 等待按键，按任意键关闭
-
-        # if self.processing_timestamp in self.image_cache:
-        #     rospy.loginfo("del processed image")
-        #     del self.image_cache[self.processing_timestamp]
-
-
 
     def mask_show(self, mask_info_msg):
         masks_stacked = self.bridge.imgmsg_to_cv2(mask_info_msg.segmasks, desired_encoding="passthrough")  # 保持原始格式
@@ -250,7 +373,7 @@ class SemanticMapGenerator:
         y_list = []
         z_list = []
         rgb_list = []
-        print(mask.shape)
+        # print(mask.shape)
         height, width = mask.shape
 
         if latest_transform is None:
@@ -381,3 +504,10 @@ if __name__ == "__main__":
         pass
 
 
+# rospy.loginfo("annotate image start")
+
+# # 测试消息发布到接收的时间
+# stored_time = rospy.get_param("/current_time")
+# now_time = rospy.Time.now().to_sec()
+# message_time = (now_time - stored_time)*1000
+# print("message transmission time (ms):", message_time)
