@@ -109,25 +109,13 @@ class SemanticMapGenerator:
             topic_semantic_object_pub, SemanticObject, queue_size=10
         )
 
-        rospy.loginfo("Semantic map generator distributed node initialization complete.")
+        rospy.loginfo("semantic_map_generator_distributed_node initialization complete.")
 
     def sync_sub_callback(self, depth_repaired_msg, mask_info_msg):
         """接收到修复后的深度图像和掩码信息后进行点云生成"""
         rospy.loginfo("reveice depth_repaired and mask_info")
         # 获取当前处理图像的时间戳
         time_stamp = depth_repaired_msg.header.stamp
-
-        # try:
-        #     # 查询tf变换
-        #     transform = self.tf_buffer.lookup_transform(
-        #                 "map",
-        #                 "camera_color_optical_frame",  # 使用光学坐标系
-        #                 time_stamp,  # 使用图像时间戳
-        #                 rospy.Duration(0.05),
-        #             )
-        # except Exception as e:
-        #     rospy.logerr(f"Sync callback error: {str(e)}")
-        #     return 
 
         # 获取tf变换
         transform = self.tf_cache.get(time_stamp.to_sec(), None)
@@ -169,7 +157,7 @@ class SemanticMapGenerator:
 
             # 对掩码进行腐蚀操作，减少物体边缘点云离群的概率
             kernel = np.ones((3, 3), np.uint8)  # 可以调整 kernel 大小来控制去噪的强度
-            mask = cv2.erode(mask, kernel, iterations=4)  # 执行腐蚀操作
+            mask = cv2.erode(mask, kernel, iterations=8)  # 执行腐蚀操作
 
             # 对掩码部分进行二次深度修复，此时返回的是一维数组，仅包含mask部分的深度
             # second_depth_repaired = self.second_depth_repair(depth_raw.copy(), depth_repaired.copy(), valid_mask)
@@ -192,8 +180,16 @@ class SemanticMapGenerator:
 
         end_time = rospy.Time.now()
         depth_repair_time = (end_time - start_time).to_sec()*1000
-        rospy.loginfo(f"create semantic map time: {depth_repair_time:.1f} ms")
+        rospy.loginfo(f"create semantic map time: {depth_repair_time:.1f} ms for timestamp:{time_stamp.to_sec()}")
         print(" ")
+
+        # 删除已处理的图像的相关数据
+        if time_stamp.to_sec() in self.color_image_cache:
+            # rospy.loginfo("del processed image")
+            del self.color_image_cache[time_stamp.to_sec()]
+            del self.depth_raw_cache[time_stamp.to_sec()]
+            del self.tf_cache[time_stamp.to_sec()]
+
 
     def create_semantic_object(
         self,
@@ -345,7 +341,7 @@ class SemanticMapGenerator:
     def annotate(self, annotation_info_msg):
         ## 进行图像标注
         # 获取消息中记录的原图像的时间戳，从而根据时间戳找到对应的原rgb图像
-        start_time = rospy.Time.now()
+        # start_time = rospy.Time.now()
 
         # self.processing_timestamp = annotation_info_msg.header.stamp
         time_stamp = annotation_info_msg.header.stamp
@@ -369,9 +365,9 @@ class SemanticMapGenerator:
         self.annotated_image = annotated_image
         self.annotate_finished_event.set()  # 设置标注已完成的事件，通知 点云对象生成 继续执行
 
-        end_time = rospy.Time.now()
-        time = (end_time - start_time).to_sec()*1000
-        rospy.loginfo(f"annotate image time: {time:.1f} ms")
+        # end_time = rospy.Time.now()
+        # time = (end_time - start_time).to_sec()*1000
+        # rospy.loginfo(f"annotate image time: {time:.1f} ms")
 
     @staticmethod
     def transform_to_matrix(transform):

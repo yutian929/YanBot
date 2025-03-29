@@ -3,11 +3,18 @@
     <!-- 获取环境变量 -->
     <arg name="semantic_map_venv" default="/usr/bin/python" doc="3D动态语义地图generator, manager, guide的Python环境路径"/>
     <arg name="semantic_categories_json_path" default="$(env YANBOT_WS)/src/Cerebellum/semantic_map_pkg/scripts/semantic_categories.json"/>
+
     
-    <!-- 依赖：grounding_sam_ros -->
-    <!-- <include file="$(find grounding_sam_ros)/launch/gsam.launch"/> -->
+    <arg name="det_seg_mode" default="yoesam" doc="目标检测和语义分割的方法选择, yoesam or gsam"/>
+    <include file="$(find yolo_evsam_ros)/launch/yoesam_distributed.launch" if="$(eval det_seg_mode == 'yoesam')"/>
+    <include file="$(find grounding_sam_ros)/launch/gsam_distributed.launch" if="$(eval det_seg_mode == 'gsam')"/>
+    
+
+    <!-- grounding_sam_ros -->
+    <!-- <include file="$(find grounding_sam_ros)/launch/gsam_distributed.launch"/> -->
     <!-- yolo_evsam_ros -->
-    <include file="$(find yolo_evsam_ros)/launch/yoesam_distributed.launch"/>
+    <!-- <include file="$(find yolo_evsam_ros)/launch/yoesam_distributed.launch"/> -->
+
     <!-- depth_anything_ros -->
     <include file="$(find depth_anything_ros)/launch/depth_repair.launch"/>
 
