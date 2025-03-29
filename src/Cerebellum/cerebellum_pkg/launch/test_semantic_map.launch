@@ -1,7 +1,7 @@
 <launch>
     
     <!-- 依赖：semantic map (generator, manager, guide) -->
-    <include file="$(find cerebellum_pkg)/launch/semantic_map.launch"/>
+    <include file="$(find cerebellum_pkg)/launch/semantic_map_handle.launch"/>
     <!-- 依赖：interact (wakeup, stt, tts) -->
     <include file="$(find cerebellum_pkg)/launch/interact.launch"/>
 
