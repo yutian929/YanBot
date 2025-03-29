@@ -114,7 +114,7 @@ class SemanticMapGenerator:
             topic_semantic_object_pub, SemanticObject, queue_size=10
         )
 
-        rospy.loginfo("semantic_map_generator_distributed_node initialization complete.")
+        rospy.loginfo("Semantic map generator distributed node initialization complete.")
 
     def depth_repaired_show(self, depth_repaired_msg):
         depth = self.bridge.imgmsg_to_cv2(depth_repaired_msg, "passthrough")
@@ -136,7 +136,7 @@ class SemanticMapGenerator:
                         "map",
                         "camera_color_optical_frame",  # 使用光学坐标系
                         time_stamp,  # 使用图像时间戳
-                        rospy.Duration(0.005),
+                        rospy.Duration(0.05),
                     )
         except Exception as e:
             rospy.logerr(f"Sync callback error: {str(e)}")
@@ -234,17 +234,26 @@ class SemanticMapGenerator:
 
         # 进行坐标变换，得到世界坐标
         world_coordinates = self.pixel_to_world_batch(x, y, z, camera_info, transform_matrix)
-
-        x_list = world_coordinates[0].tolist()
-        y_list = world_coordinates[1].tolist()
-        z_list = world_coordinates[2].tolist()
-
-        points_cnt = len(x_list)
+        # print("world_coordinates shape:", world_coordinates.shape)
 
         # 获取掩码中有效像素的坐标
         valid_mask = mask > 0  # 掩码部分，确保有效区域
         # 提取有效的 BGR 值
         bgr_values = color_image[valid_mask]  # 提取掩码区域的 BGR 值
+        # print("bgr_values shape:", bgr_values.shape)
+
+        # 进行下采样
+        if self.downsample_step > 1:  # 只有步长大于1才进行下采样
+            sampled_indices = np.arange(0, world_coordinates.shape[1], self.downsample_step)  # 统一索引
+            world_coordinates = world_coordinates[:, sampled_indices]  # 只对第二维下采样
+            bgr_values = bgr_values[sampled_indices]  # 直接按索引下采样
+        
+
+        x_list = world_coordinates[0].tolist()
+        y_list = world_coordinates[1].tolist()
+        z_list = world_coordinates[2].tolist()
+        points_cnt = len(x_list)
+
         # 使用 struct.pack 和 struct.unpack 转换为 RGB 格式
         rgb_list = []
         for b, g, r in bgr_values:
@@ -359,15 +368,16 @@ class SemanticMapGenerator:
         depth_raw = self.bridge.imgmsg_to_cv2(depth_raw_msg, "passthrough")
         self.color_image_cache[time_stamp] = color_image
         self.depth_raw_cache[time_stamp] = depth_raw
-        rospy.loginfo("receive color image and raw depth ")
+        # rospy.loginfo("receive color image and raw depth ")
 
     def annotate(self, annotation_info_msg):
         ## 进行图像标注
         # 获取消息中记录的原图像的时间戳，从而根据时间戳找到对应的原rgb图像
         start_time = rospy.Time.now()
 
-        self.processing_timestamp = annotation_info_msg.header.stamp
-        self.processing_image = self.color_image_cache[self.processing_timestamp.to_sec()]
+        # self.processing_timestamp = annotation_info_msg.header.stamp
+        time_stamp = annotation_info_msg.header.stamp
+        self.processing_image = self.color_image_cache[time_stamp.to_sec()]
 
         class_id = np.array(annotation_info_msg.class_id)
         labels = annotation_info_msg.labels

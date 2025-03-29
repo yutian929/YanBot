@@ -1,10 +1,12 @@
 #!/usr/bin/env python
 import rospy
 from sensor_msgs.msg import Image, CameraInfo
+from std_msgs.msg import Bool
 from cv_bridge import CvBridge
 from tf2_ros import Buffer, TransformListener
 from message_filters import ApproximateTimeSynchronizer, Subscriber
 import threading
+import time
 
 class SemanticMapMaster:
     def __init__(self):
@@ -24,7 +26,21 @@ class SemanticMapMaster:
         self.tf_buffer = Buffer()
         self.tf_listener = TransformListener(self.tf_buffer)
 
-        self.data_lock = threading.Lock()
+        rospy.loginfo("master node")    
+
+        # # 等待yolo_evsam_ros加载完模型
+        # rospy.wait_for_message("yolo_evsam_ros_init", Bool)
+
+        # # 等待depth_anything_ros加载完模型
+        # rospy.wait_for_message("depth_anything_ros_init", Bool)
+        # 轮询参数，等待目标节点设置 "model_loaded" 为 True
+        while not (rospy.has_param("/depth_anything_ros_init") and rospy.has_param("/yolo_evsam_ros_init")):
+            rospy.loginfo("Waiting for model to load...")
+            time.sleep(2)
+
+        rospy.loginfo("All model loaded! Now starting master node...")    
+
+        self.data_lock = threading.Lock()    
 
         # 定时器
         rospy.Timer(rospy.Duration(0.5), self.timer_callback)
@@ -44,13 +60,13 @@ class SemanticMapMaster:
         ts = ApproximateTimeSynchronizer(
             [image_sub, depth_sub], queue_size=2, slop=0.005
         )
-        ts.registerCallback(self.sync_sub_callback)
+        ts.registerCallback(self.update_latest_image_and_depth)
 
         # 待处理的rgb图像和原始深度图像发布（发布给 检测分割节点 和 深度修复节点 ，作为开始处理的触发信号）
         self.color_to_process_pub = rospy.Publisher("color_to_process", Image, queue_size=1)
         self.depth_to_process_pub = rospy.Publisher("depth_to_process", Image, queue_size=1)
 
-        rospy.loginfo("semantic_map_master_node initialization complete.")
+        rospy.loginfo("Semantic map master initialization complete.")
 
 
     def timer_callback(self, event):
@@ -76,6 +92,7 @@ class SemanticMapMaster:
                 if (not det_seg_processing) and (not depth_repair_processing):
                     self.color_to_process_pub.publish(self.latest_image)
                     self.depth_to_process_pub.publish(self.latest_depth)
+                    print(" ")
                     rospy.loginfo("publish color_to_process and depth_to_process.")
                     self.latest_image = None
                     self.latest_depth = None
@@ -84,11 +101,12 @@ class SemanticMapMaster:
             rospy.logerr(f"Sync callback error: {str(e)}")
 
 
-    def sync_sub_callback(self, img_msg, depth_msg):
+    def update_latest_image_and_depth(self, img_msg, depth_msg):
         """持续记录当前最新的图像消息"""
-        self.latest_image = img_msg
-        self.latest_depth = depth_msg
-        # rospy.loginfo("latest_image and latest_depth update.")
+        with self.data_lock:
+            self.latest_image = img_msg
+            self.latest_depth = depth_msg
+            # rospy.loginfo("latest_image and latest_depth update.")
 
 
 
