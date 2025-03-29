@@ -27,7 +27,7 @@ class SemanticMapMaster:
         self.data_lock = threading.Lock()
 
         # 定时器
-        rospy.Timer(rospy.Duration(2), self.timer_callback)
+        rospy.Timer(rospy.Duration(0.5), self.timer_callback)
 
         # 订阅rgb图像
         topic_image_sub = rospy.get_param(
@@ -78,7 +78,7 @@ class SemanticMapMaster:
                     self.depth_to_process_pub.publish(self.latest_depth)
                     rospy.loginfo("publish color_to_process and depth_to_process.")
                     self.latest_image = None
-                    self.latest_image = None
+                    self.latest_depth = None
 
         except Exception as e:
             rospy.logerr(f"Sync callback error: {str(e)}")

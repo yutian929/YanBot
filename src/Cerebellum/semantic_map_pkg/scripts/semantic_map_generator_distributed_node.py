@@ -93,15 +93,15 @@ class SemanticMapGenerator:
         ## 点云生成的回调
         # 订阅修复后的深度图像
         # depth_repaired_sub = rospy.Subscriber("depth_repaired", Image, self.depth_repaired_show, queue_size=2)
-        depth_repaired_sub = Subscriber("depth_repaired", Image, queue_size=2)
+        depth_repaired_sub = Subscriber("depth_repaired", Image, queue_size=5)
         
         # 订阅掩码信息
         # self.mask_info_sub = rospy.Subscriber("mask_info", MaskInfo, self.mask_show, queue_size=2)
-        mask_info_sub = Subscriber("mask_info", MaskInfo, queue_size=2)
+        mask_info_sub = Subscriber("mask_info", MaskInfo, queue_size=5)
         
         # 同步回调
         ts = ApproximateTimeSynchronizer(
-            [depth_repaired_sub, mask_info_sub], queue_size=2, slop=0.005
+            [depth_repaired_sub, mask_info_sub], queue_size=5, slop=0.005
         )
         ts.registerCallback(self.sync_sub_callback)
         # ts.registerCallback(lambda depth_msg, mask_msg: self.executor.submit(self.sync_sub_callback, depth_msg, mask_msg))
@@ -130,21 +130,27 @@ class SemanticMapGenerator:
         # 获取当前处理图像的时间戳
         time_stamp = depth_repaired_msg.header.stamp
 
-        # 查询tf变换
-        transform = self.tf_buffer.lookup_transform(
-                    "map",
-                    "camera_color_optical_frame",  # 使用光学坐标系
-                    time_stamp,  # 使用图像时间戳
-                    rospy.Duration(0.005),
-                )
-        
+        try:
+            # 查询tf变换
+            transform = self.tf_buffer.lookup_transform(
+                        "map",
+                        "camera_color_optical_frame",  # 使用光学坐标系
+                        time_stamp,  # 使用图像时间戳
+                        rospy.Duration(0.005),
+                    )
+        except Exception as e:
+            rospy.logerr(f"Sync callback error: {str(e)}")
+            return 
+
+        # 构造变换矩阵
+        transform_matrix = self.transform_to_matrix(transform)
+
         # 获取原始深度
-        times_tamp = depth_repaired_msg.header.stamp
         # depth_raw = self.depth_raw_cache[times_tamp.to_sec()]
         depth_raw = self.depth_raw_cache.get(time_stamp.to_sec(), None)
         if depth_raw is None:
             rospy.logwarn(f"Depth data for timestamp {time_stamp.to_sec()} not found.")
-            return  # 或者使用默认值
+            return   # 原始深度不存在，直接返回
 
         # 获取修复后的深度
         depth_repaired = self.bridge.imgmsg_to_cv2(depth_repaired_msg, desired_encoding='passthrough')
@@ -156,101 +162,150 @@ class SemanticMapGenerator:
         else:  # 形状为 (H, W) 只有一张掩码
             masks = np.expand_dims(masks_stacked, axis=0)  # 变成 (1, H, W)
 
+        # 获取每个物体的类别标签和置信度
+        labels = mask_info_msg.labels
+        scores = mask_info_msg.scores
+
         start_time = rospy.Time.now()
 
         # 初始化最终深度图，先填充为修复后的深度
         final_depth = np.copy(depth_repaired)
         
         # 对每张掩码进行处理
-        for mask in masks:
-            # 对掩码部分进行二次深度修复
-            # print(mask.shape)
-            second_depth_repaired = self.second_depth_repair(depth_raw.copy(), depth_repaired.copy(), mask)
+        for mask, label, score in zip(masks, labels, scores):
+            # valid_mask = mask > 0  # 将掩码数据类型转化为bool数组
+            # 对掩码部分进行二次深度修复，此时返回的是一维数组，仅包含mask部分的深度
+            # second_depth_repaired = self.second_depth_repair(depth_raw.copy(), depth_repaired.copy(), valid_mask)
+            second_depth_repaired_masked = self.second_depth_repair(depth_raw.copy(), depth_repaired.copy(), mask)
 
-            # 仅对掩码部分填充二次修复后的深度
-            final_depth[mask > 0] = second_depth_repaired[mask > 0]
-        
-        # # 将非掩码部分填充为原始修复深度数据
-        # final_depth[final_depth == 0] = depth_repaired[final_depth == 0]
+            # 生成单张掩码所对应的语义对象
+            semantic_obj = self.create_semantic_object(
+                mask,
+                label,
+                score,
+                self.processing_image,
+                second_depth_repaired_masked,
+                self.camera_info,
+                transform_matrix,
+            )
+            if semantic_obj is not None:
+                self.semantic_object_pub.publish(semantic_obj)
 
-        # 计算深度差异
-        depth_difference = final_depth.astype(np.int32) - depth_raw.astype(np.int32)
-
-        # 限制 depth_difference 在 [-1000, 1000] 之间
-        vmin = -1000
-        vmax = 1000
-        depth_difference = np.clip(depth_difference, vmin, vmax)
-
-        # 可视化深度差异
-        norm = mcolors.TwoSlopeNorm(vmin=vmin, vcenter=0, vmax=vmax)
-        plt.figure(figsize=(8, 6))
-        plt.imshow(depth_difference, cmap='bwr', norm=norm, interpolation='nearest')
-        plt.colorbar()
-        # plt.title("Depth Difference (Estimated - Raw)")
-        # plt.show()
-
-        # 合并掩码并保存掩码图像
-        combined_mask = np.zeros_like(depth_repaired, dtype=np.uint8)  # 初始化掩码图像
-        for mask in masks:
-            combined_mask = np.maximum(combined_mask, mask.astype(np.uint8) * 255)  # 合并所有掩码
+        self.annotate_finished_event.clear()  # 设置事件为 False，供下一帧语义对象的生成使用
 
         end_time = rospy.Time.now()
         depth_repair_time = (end_time - start_time).to_sec()*1000
-        rospy.loginfo(f"second depth repair time: {depth_repair_time:.1f} ms")
+        rospy.loginfo(f"create semantic map time: {depth_repair_time:.1f} ms")
+        print(" ")
 
-        outdir1 = '/home/zjy/vis_depth_map/mask'
-        outdir2 = '/home/zjy/vis_depth_map/diff'
-        os.makedirs(outdir1, exist_ok=True)
-        os.makedirs(outdir2, exist_ok=True)
-        filename = f"{time_stamp.to_sec():.9f}.png"
-
-        # 保存掩码图像，方便可视化
-        mask_filename = os.path.join(outdir1, filename)
-        cv2.imwrite(mask_filename, combined_mask)
-
-        # 导出深度差异（plt绘制结果，保存为为图片）
-        plt_file_name = os.path.join(outdir2, filename)
-        plt.savefig(plt_file_name, dpi=300, bbox_inches='tight')
+            # z = z/1000.0   # 单位转化 mm -> m
+            # # 获取掩码中所有有效点的 (x, y) 坐标
+            # y, x = np.nonzero(mask)
 
 
 
+            # # x_y = np.vstack((x_coords, y_coords)).T
 
+            # # 确保深度数组 z 和 (x, y) 数组长度一致
+            # assert len(z) == len(x_y), "深度数组与坐标数组长度不匹配"
+            # x_y_z = np.column_stack((x_y, z))  # 将 (x, y) 和深度数组 z 拼接在一起，形成 (x, y, z) 数组
 
-        # 获取每个物体的类别标签和置信度
-        labels = mask_info_msg.labels
-        scores = mask_info_msg.scores
-
-        # # 进行掩码部分的二次深度修复
-        # for mask, label, score in zip(masks, labels, scores):
-        #     second_depth_repaired = self.second_depth_repair(depth_raw, depth_repaired, mask)
-
-
-            
-
-        ## 先对掩码部分的深度进行二次修复（主要是比例缩放），确保深度与原深度没有距离偏差
-
-
-        # print(masks.shape)
-        # start_time = rospy.Time.now()
-        # second_depth_repaired = self.second_depth_repair(depth_raw, depth_repaired, masks[0])
         # end_time = rospy.Time.now()
         # depth_repair_time = (end_time - start_time).to_sec()*1000
         # rospy.loginfo(f"second depth repair time: {depth_repair_time:.1f} ms")
 
-        # rospy.loginfo("second depth repair finished")
+    def create_semantic_object(
+        self,
+        mask,
+        label,
+        score,
+        color_image,
+        depth_masked,
+        camera_info,
+        transform_matrix,
+    ):
+        # 针对一张语义掩码生成语义点云
+        header = Header()
+        header.stamp = rospy.Time.now()
+        header.frame_id = "map"
 
+        y, x = np.nonzero(mask)  # 获取掩码中每个点的x,y坐标
+        z = depth_masked / 1000.0   # 获取掩码中每个点对应的深度，单位（mm -> m）
+
+        # 进行坐标变换，得到世界坐标
+        world_coordinates = self.pixel_to_world_batch(x, y, z, camera_info, transform_matrix)
+
+        x_list = world_coordinates[0].tolist()
+        y_list = world_coordinates[1].tolist()
+        z_list = world_coordinates[2].tolist()
+
+        points_cnt = len(x_list)
+
+        # 获取掩码中有效像素的坐标
+        valid_mask = mask > 0  # 掩码部分，确保有效区域
+        # 提取有效的 BGR 值
+        bgr_values = color_image[valid_mask]  # 提取掩码区域的 BGR 值
+        # 使用 struct.pack 和 struct.unpack 转换为 RGB 格式
+        rgb_list = []
+        for b, g, r in bgr_values:
+            rgb = struct.pack("BBBB", b, g, r, 0)  # 将 BGR 打包
+            rgb_value = struct.unpack("<I", rgb)[0]  # 解包为 32 位整数
+            rgb_list.append(rgb_value)
+
+        # 等待图像标注完成才进行最终的语义对象生成
+        self.annotate_finished_event.wait()
+
+        # 创建SemanticObject消息
+        semantic_obj = SemanticObject(
+            category=label,
+            count=points_cnt,
+            x=x_list,
+            y=y_list,
+            z=z_list,
+            rgb=rgb_list,
+            confidence=score,
+            image=self.bridge.cv2_to_imgmsg(self.annotated_image, "bgr8"),
+        )
+
+        rospy.loginfo(f"Generated {points_cnt} points for {label}")
+        return semantic_obj
+
+
+    def pixel_to_world_batch(self, u_coords, v_coords, z_coords, camera_info, transform_matrix):
+        """
+        批量将像素坐标 (u, v) 和深度值 z 转换到世界坐标系。
+        """
+        # 从CameraInfo获取内参
+        fx = camera_info.K[0]
+        fy = camera_info.K[4]
+        cx = camera_info.K[2]
+        cy = camera_info.K[5]
+        
+        # 计算相机坐标系中的 x, y, z
+        x_cam = (u_coords - cx) * z_coords / fx
+        y_cam = (v_coords - cy) * z_coords / fy
+        z_cam = z_coords
+
+        # 将 x, y, z 组成齐次坐标 (x, y, z, 1) 对应每个像素
+        point_cam = np.vstack([x_cam, y_cam, z_cam, np.ones_like(x_cam)])
+
+        # 执行坐标系转换
+        point_world = transform_matrix.dot(point_cam)
+
+        # 返回世界坐标系中的 (x, y, z)
+        return point_world[:3]
 
     def second_depth_repair(self, depth_raw, depth_repaired, mask, threshold=500, min_valid_points=50):
         # 1. 使用掩码选择有效区域的深度
         valid_mask = mask > 0  # 掩码部分，确保有效区域
 
-        valid_depth_raw = depth_raw[valid_mask].astype(np.float32)  # 选择所有掩码为非零部分的原始深度
-        valid_depth_repaired = depth_repaired[valid_mask].astype(np.float32)  # 选择所有掩码为非零部分的修复深度
+        mask_depth_raw = depth_raw[valid_mask].astype(np.float32)  # 选择所有掩码为非零部分的原始深度
+        mask_depth_repaired = depth_repaired[valid_mask].astype(np.float32)  # 选择所有掩码为非零部分的修复深度
         
         # 2. 去掉原始深度为0的部分
-        valid_depth_mask = valid_depth_raw > 0  # 筛选原始深度非零的部分
-        valid_depth_raw = valid_depth_raw[valid_depth_mask]
-        valid_depth_repaired = valid_depth_repaired[valid_depth_mask]  # 同步选择修复后的深度
+        valid_depth_mask = mask_depth_raw > 0  # 筛选原始深度非零的部分
+        valid_depth_raw = mask_depth_raw[valid_depth_mask]
+        valid_depth_repaired = mask_depth_repaired[valid_depth_mask]  # 同步选择修复后的深度
         
         # 3. 去掉修复深度与原始深度差值绝对值超过500的部分
         diff = np.abs(valid_depth_raw - valid_depth_repaired)
@@ -280,10 +335,12 @@ class SemanticMapGenerator:
             # 从返回的参数中获取拟合参数 A 和 b
             A, b = params
 
-            fitted_depth = A * (depth_repaired) + b
+            fitted_depth = A * (depth_repaired) + b # 整个深度图，调试观察效果用
+            fitted_depth = A * (mask_depth_repaired) + b # 仅掩码部分的深度，拼接（x,y,z）数组，用于后续点云计算
         else:
             # 5. 如果有效点过少，直接使用首次修复的深度
-            fitted_depth = depth_repaired
+            # fitted_depth = depth_repaired
+            fitted_depth = mask_depth_repaired
 
         return fitted_depth
 
@@ -353,74 +410,7 @@ class SemanticMapGenerator:
         cv2.imshow("Mask", masks[0])
         cv2.waitKey(1)
         
-    def create_semantic_object(
-        self,
-        mask,
-        label,
-        score,
-        anonated,
-        latest_image,
-        latest_depth,
-        camera_info,
-        latest_transform,
-    ):
-        # 针对一张语义掩码生成语义点云
-        header = Header()
-        header.stamp = rospy.Time.now()
-        header.frame_id = "map"
-
-        x_list = []
-        y_list = []
-        z_list = []
-        rgb_list = []
-        # print(mask.shape)
-        height, width = mask.shape
-
-        if latest_transform is None:
-            rospy.logwarn("No valid TF transform available")
-            return None
-
-        h, w = latest_depth.shape
-        for v in range(0, height, self.downsample_step):  # 针对掩码中的每个像素
-            for u in range(0, width, self.downsample_step):
-                if mask[v, u] > 0:
-                    z = latest_depth[v, u]  # mm
-                    point = self.pixel_to_world(
-                        u, v, z, camera_info, latest_transform
-                    )  # m, 针对每个世界点
-                    if point is not None:
-                        if 0 <= v < h and 0 <= u < w:
-                            b, g, r = latest_image[v, u]  # 提取BGR
-                        else:
-                            r, g, b = 255, 255, 255  # 默认白色
-                        # 将RGB打包成UINT32（格式：0x00RRGGBB）
-                        rgb = struct.pack("BBBB", b, g, r, 0)
-                        rgb_value = struct.unpack("<I", rgb)[0]
-                        x_list.append(point[0])
-                        y_list.append(point[1])
-                        z_list.append(point[2])
-                        rgb_list.append(rgb_value)
-
-        # # 点云聚类与剔除优化
-        # x_list, y_list, z_list, rgb_list = self.point_clouds_filter(
-        #     x_list, y_list, z_list, rgb_list
-        # )
-        points_cnt = len(x_list)
-
-        # 创建SemanticObject消息
-        semantic_obj = SemanticObject(
-            category=label,
-            count=points_cnt,
-            x=x_list,
-            y=y_list,
-            z=z_list,
-            rgb=rgb_list,
-            confidence=score,
-            image=self.bridge.cv2_to_imgmsg(anonated, "bgr8"),
-        )
-
-        rospy.loginfo(f"Generated {points_cnt} points for {label}")
-        return semantic_obj
+    
     
     def pixel_to_world(self, u, v, z, camera_info, latest_transform):
         """将像素坐标转换为世界坐标"""
