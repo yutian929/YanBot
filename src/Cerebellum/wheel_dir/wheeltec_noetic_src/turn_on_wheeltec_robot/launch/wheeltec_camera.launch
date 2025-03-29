@@ -84,11 +84,11 @@
 
         <include file="$(find realsense2_camera)/launch/rs_camera.launch">
             <!-- 基础图像参数配置 -->
-            <arg name="color_width" value="640"/>
+            <!-- <arg name="color_width" value="640"/>
             <arg name="color_height" value="480"/>
             <arg name="depth_width" value="640"/>
-            <arg name="depth_height" value="480"/>
-            <arg name="enable_pointcloud" value="true"/>
+            <arg name="depth_height" value="480"/> -->
+            <!-- <arg name="enable_pointcloud" value="true"/> -->
             
             <!-- 启用深度对齐到彩色图像 -->
             <arg name="align_depth" value="true"/>
