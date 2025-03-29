@@ -1,0 +1,82 @@
+<launch>
+    
+    <!-- 获取环境变量 -->
+    <arg name="semantic_map_venv" default="/usr/bin/python" doc="3D动态语义地图generator, manager, guide的Python环境路径"/>
+    <arg name="semantic_categories_json_path" default="$(env YANBOT_WS)/src/Cerebellum/semantic_map_pkg/scripts/semantic_categories.json"/>
+
+    
+    <arg name="det_seg_mode" default="yoesam" doc="目标检测和语义分割的方法选择, yoesam or gsam"/>
+    <include file="$(find yolo_evsam_ros)/launch/yoesam_distributed.launch" if="$(eval det_seg_mode == 'yoesam')"/>
+    <include file="$(find grounding_sam_ros)/launch/gsam_distributed.launch" if="$(eval det_seg_mode == 'gsam')"/>
+    
+    <arg name="enable_depth_repair" default="true" doc="是否启用深度修复"/>
+
+    <include file="$(find depth_anything_ros)/launch/depth_repair.launch">
+        <arg name="enable_depth_repair" value="$(arg enable_depth_repair)"/>
+    </include>
+
+    <!-- grounding_sam_ros -->
+    <!-- <include file="$(find grounding_sam_ros)/launch/gsam_distributed.launch"/> -->
+    <!-- yolo_evsam_ros -->
+    <!-- <include file="$(find yolo_evsam_ros)/launch/yoesam_distributed.launch"/> -->
+
+    <!-- depth_anything_ros -->
+    <!-- <include file="$(find depth_anything_ros)/launch/depth_repair.launch"/> -->
+
+    <!-- master节点 -->
+    <node name="semantic_map_master_node" 
+        pkg="semantic_map_pkg" 
+        type="semantic_map_master_node.py"
+        launch-prefix="$(arg semantic_map_venv)"
+        output="screen"
+        respawn="true">
+        <param name="semantic_categories_json_path" 
+                type="str" 
+                value="$(arg semantic_categories_json_path)"/>
+        <param name="topic_image_sub"      type="str"   value="/camera/color/image_raw" />
+        <param name="topic_depth_sub"      type="str"   value="/camera/aligned_depth_to_color/image_raw" />
+        <param name="service_update_prompt" type="str"  value="/update_prompt" />
+        <param name="camera_link_father" type="str" value="map"/>  <!-- 相机坐标系父节点 -->
+        <param name="camera_link_child" type="str" value="camera_color_optical_frame"/> <!-- 相机坐标系子节点 -->
+        <param name="timer_duration"      type="double" value="1.0" />
+    </node>
+
+    <!-- generator节点 -->
+    <node name="semantic_map_generator_node" 
+        pkg="semantic_map_pkg" 
+        type="semantic_map_generator_distributed_node.py"
+        launch-prefix="$(arg semantic_map_venv)"
+        output="screen"
+        respawn="true">
+        <param name="downsample_step"      type="int"   value="2" />
+        <param name="topic_camera_info_sub" type="str" value="/camera/color/camera_info" />
+        <param name="service_update_prompt" type="str"  value="/update_prompt" />
+        <param name="camera_link_father" type="str" value="map"/>  <!-- 相机坐标系父节点 -->
+        <param name="camera_link_child" type="str" value="camera_color_optical_frame"/> <!-- 相机坐标系子节点 -->
+        <param name="timer_duration"      type="double" value="1.0" />
+    </node>
+
+    <!-- manager节点 -->
+    <node name="semantic_map_manager_node" 
+        pkg="semantic_map_pkg" 
+        type="semantic_map_manager_node.py"
+        launch-prefix="$(arg semantic_map_venv)"
+        output="screen"
+        respawn="true">
+    <!-- 数据库配置 -->
+    <param name="db_path" type="str" value="$(env YANBOT_WS)/semantic_map.db"/> <!-- 与guide节点共享数据库 -->
+    <param name="renew_db" type="bool" value="true"/>  <!-- 是否重建数据库 -->
+    <param name="last_seen_imgs_dir" type="str" value="$(env YANBOT_WS)/last_seen_imgs"/>
+    <!-- 话题订阅配置 -->
+    <param name="topic_semantic_object_sub" type="str" value="/semantic_object"/>  <!-- 需与generator的发布话题一致 -->
+    <param name="topic_semantic_map_pub" type="str" value="/semantic_map"/>  <!-- 全局语义地图发布话题 -->
+    <!-- 可视化参数 -->
+    <param name="semantic_map_frame_id" type="str" value="map"/>  <!-- 地图坐标系 -->
+    <param name="topic_bbox_markers" type="str" value="/semantic_map_bbox"/> <!-- BBox显示话题 -->
+    <param name="bbox_colora" type="str" value="[0.0, 1.0, 0.0, 0.5]"/>  <!-- RGBA颜色数组 -->
+    <param name="bbox_line_width" type="double" value="0.01"/>
+    <param name="show_bbox" type="bool" value="true"/>  <!-- 是否显示包围盒 -->
+    <param name="service_show" type="str" value="/semantic_map_show"/>  <!-- 地图显示服务端点 -->
+    </node>
+
+</launch>
