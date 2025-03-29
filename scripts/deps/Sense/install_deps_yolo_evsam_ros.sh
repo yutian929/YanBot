@@ -46,7 +46,8 @@ fi
 # 检查环境是否存在
 ENV_NAME="yoesam"
 if conda env list | grep -q -E "\b${ENV_NAME}\b"; then
-    echo "Conda environment '$ENV_NAME' already exists."
+    echo "Conda environment '$ENV_NAME' already exists. check if it is the latest version..."
+    conda env update -n yoesam -f yoesam.yaml
 else
     echo "Creating conda environment from yoesam.yaml..."
     conda env create -f yoesam.yaml
