@@ -5,6 +5,7 @@ import numpy as np
 from cv_bridge import CvBridge
 from sensor_msgs.msg import Image, CameraInfo
 from std_msgs.msg import Header
+from geometry_msgs.msg import TransformStamped
 from message_filters import ApproximateTimeSynchronizer, Subscriber
 from tf2_ros import Buffer, TransformListener
 import tf
@@ -42,6 +43,7 @@ class SemanticMapGenerator:
         self.camera_info = None
         self.color_image_cache = {}
         self.depth_raw_cache = {}
+        self.tf_cache = {}
 
         self.processing_timestamp = None
         self.processing_image = None
@@ -72,15 +74,16 @@ class SemanticMapGenerator:
         self.camera_info_sub = rospy.Subscriber(topic_camera_info_sub, CameraInfo, self.read_camera_info,queue_size=2)
 
         ### 线程1 ###
-        # 订阅rgb图像和原始深度图像（在定时器发布时就存取）
+        # 订阅rgb图像和原始深度图像、tf变换（在定时器发布时就存取）
         color_image_sub = Subscriber("color_to_process", Image, queue_size=1)
         depth_raw_sub = Subscriber("depth_to_process", Image, queue_size=1)
+        tf_sub = Subscriber('tf_transform', TransformStamped, queue_size=5)
         # 同步回调
         ts1 = ApproximateTimeSynchronizer(
-            [color_image_sub, depth_raw_sub], queue_size=2, slop=0.005
+            [color_image_sub, depth_raw_sub, tf_sub], queue_size=3, slop=0.005
         )
         # ts1.registerCallback(self.store_image)
-        ts1.registerCallback(lambda color_image_msg, depth_raw_msg: self.executor.submit(self.store_image, color_image_msg, depth_raw_msg))
+        ts1.registerCallback(lambda color_image_msg, depth_raw_msg, tf_msg: self.executor.submit(self.store_image, color_image_msg, depth_raw_msg, tf_msg))
 
         # 订阅图像标注信息
         # self.annotation_info_sub = rospy.Subscriber("annotation_info", AnnotationInfo, self.annotate, queue_size=2)
@@ -89,10 +92,8 @@ class SemanticMapGenerator:
         ## 点云生成的回调
         # 订阅修复后的深度图像
         depth_repaired_sub = Subscriber("depth_repaired", Image, queue_size=5)
-        
         # 订阅掩码信息
         mask_info_sub = Subscriber("mask_info", MaskInfo, queue_size=5)
-        
         # 同步回调
         ts = ApproximateTimeSynchronizer(
             [depth_repaired_sub, mask_info_sub], queue_size=5, slop=0.005
@@ -116,17 +117,23 @@ class SemanticMapGenerator:
         # 获取当前处理图像的时间戳
         time_stamp = depth_repaired_msg.header.stamp
 
-        try:
-            # 查询tf变换
-            transform = self.tf_buffer.lookup_transform(
-                        "map",
-                        "camera_color_optical_frame",  # 使用光学坐标系
-                        time_stamp,  # 使用图像时间戳
-                        rospy.Duration(0.05),
-                    )
-        except Exception as e:
-            rospy.logerr(f"Sync callback error: {str(e)}")
-            return 
+        # try:
+        #     # 查询tf变换
+        #     transform = self.tf_buffer.lookup_transform(
+        #                 "map",
+        #                 "camera_color_optical_frame",  # 使用光学坐标系
+        #                 time_stamp,  # 使用图像时间戳
+        #                 rospy.Duration(0.05),
+        #             )
+        # except Exception as e:
+        #     rospy.logerr(f"Sync callback error: {str(e)}")
+        #     return 
+
+        # 获取tf变换
+        transform = self.tf_cache.get(time_stamp.to_sec(), None)
+        if transform is None:
+            rospy.logwarn(f"tf transform for timestamp {time_stamp.to_sec()} not found.")
+            return   # tf变换不存在，直接返回
 
         # 构造变换矩阵
         transform_matrix = self.transform_to_matrix(transform)
@@ -325,13 +332,14 @@ class SemanticMapGenerator:
         self.camera_info_sub.unregister() 
         rospy.loginfo("camera_info saved, Unsubscribed from /camera/color/camera_info")
 
-    def store_image(self, color_image_msg, depth_raw_msg):
-        ## 在定时器发布时存取rgb图像和原始深度
+    def store_image(self, color_image_msg, depth_raw_msg, tf_msg):
+        ## 在定时器发布时存取rgb图像和原始深度、tf变换
         time_stamp = color_image_msg.header.stamp.to_sec()
         color_image = self.bridge.imgmsg_to_cv2(color_image_msg, "bgr8")
         depth_raw = self.bridge.imgmsg_to_cv2(depth_raw_msg, "passthrough")
         self.color_image_cache[time_stamp] = color_image
         self.depth_raw_cache[time_stamp] = depth_raw
+        self.tf_cache[time_stamp] = tf_msg
         # rospy.loginfo("receive color image and raw depth ")
 
     def annotate(self, annotation_info_msg):

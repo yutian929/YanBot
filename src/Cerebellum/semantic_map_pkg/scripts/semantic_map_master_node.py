@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 import rospy
 from sensor_msgs.msg import Image
+from geometry_msgs.msg import TransformStamped
 from cv_bridge import CvBridge
 from tf2_ros import Buffer, TransformListener
 from message_filters import ApproximateTimeSynchronizer, Subscriber
@@ -35,7 +36,7 @@ class SemanticMapMaster:
         self.data_lock = threading.Lock()    
 
         # 定时器
-        rospy.Timer(rospy.Duration(0.5), self.timer_callback)
+        rospy.Timer(rospy.Duration(0.6), self.timer_callback)
 
         # 订阅rgb图像
         topic_image_sub = rospy.get_param(
@@ -58,7 +59,10 @@ class SemanticMapMaster:
         self.color_to_process_pub = rospy.Publisher("color_to_process", Image, queue_size=1)
         self.depth_to_process_pub = rospy.Publisher("depth_to_process", Image, queue_size=1)
 
-        rospy.loginfo("Semantic map master initialization complete.")
+        # 将查询到tf变换转发给点云计算节点
+        self.tf_pub = rospy.Publisher('tf_transform', TransformStamped, queue_size=10)
+
+        rospy.loginfo("semantic_map_master_node initialization complete.")
 
 
     def timer_callback(self, event):
@@ -67,14 +71,7 @@ class SemanticMapMaster:
             with self.data_lock:
                 if self.latest_image is None or self.latest_depth is None:
                     return
-                # 先确认当前最新图像有没有对应时间的tf变换
-                # 相机坐标系变换约在图像数据到达的0.03s之后才会生成，map->odom的tf的时间戳反而是当前时间的未来0.1s
-                transform = self.tf_buffer.lookup_transform(
-                    "map",
-                    "camera_color_optical_frame",  # 使用光学坐标系
-                    self.latest_image.header.stamp,  # 使用图像时间戳
-                    rospy.Duration(0.05),
-                )
+                
                 # 主要用于控制点云生成整体频率（通过控制 待处理的rgb图像和原始深度图像 的发布来实现）
                 # 先确认两个图像处理节点是否正在执行处理
                 det_seg_processing = rospy.get_param("det_seg_processing")
@@ -82,10 +79,26 @@ class SemanticMapMaster:
 
                 # 检测分割和深度修复均不在进行中
                 if (not det_seg_processing) and (not depth_repair_processing):
+                    # image = self.latest_image.copy()
+                    # depth = self.latest_depth.copy()
+
+                    # 先确认当前最新图像有没有对应时间的tf变换
+                    # 相机坐标系变换约在图像数据到达的0.03s之后才会生成，map->odom的tf的时间戳反而是当前时间的未来0.1s
+                    time_stamp = self.latest_image.header.stamp
+                    transform = self.tf_buffer.lookup_transform(
+                        "map",
+                        "camera_color_optical_frame",  # 使用光学坐标系
+                        time_stamp,  # 使用图像时间戳
+                        rospy.Duration(0.05),
+                    )
+                    transform.header.stamp = time_stamp
+                    # 发布 TF 变换消息
+                    self.tf_pub.publish(transform)
+                    # 发布rgb图像和深度图像
                     self.color_to_process_pub.publish(self.latest_image)
                     self.depth_to_process_pub.publish(self.latest_depth)
                     print(" ")
-                    rospy.loginfo("publish color_to_process and depth_to_process.")
+                    rospy.loginfo(f"publish color_to_process and depth_to_process of timestamp:{time_stamp.to_sec()}")
                     self.latest_image = None
                     self.latest_depth = None
 
