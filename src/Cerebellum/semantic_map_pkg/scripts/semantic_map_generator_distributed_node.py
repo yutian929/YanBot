@@ -155,9 +155,11 @@ class SemanticMapGenerator:
         for mask, label, score in zip(masks, labels, scores):
             # valid_mask = mask > 0  # 将掩码数据类型转化为bool数组
 
-            # 对掩码进行腐蚀操作，减少物体边缘点云离群的概率
-            kernel = np.ones((3, 3), np.uint8)  # 可以调整 kernel 大小来控制去噪的强度
-            mask = cv2.erode(mask, kernel, iterations=8)  # 执行腐蚀操作
+            if np.count_nonzero(mask > 0) > 500 :
+                # 如果掩码点数原本就小于500，不做腐蚀
+                # 对掩码进行腐蚀操作，减少物体边缘点云离群的概率
+                kernel = np.ones((3, 3), np.uint8)  # 可以调整 kernel 大小来控制去噪的强度
+                mask = cv2.erode(mask, kernel, iterations=5)  # 执行腐蚀操作
 
             # 对掩码部分进行二次深度修复，此时返回的是一维数组，仅包含mask部分的深度
             # second_depth_repaired = self.second_depth_repair(depth_raw.copy(), depth_repaired.copy(), valid_mask)

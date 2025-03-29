@@ -7,6 +7,7 @@ from tf2_ros import Buffer, TransformListener
 from message_filters import ApproximateTimeSynchronizer, Subscriber
 import threading
 import time
+import json
 
 class SemanticMapMaster:
     def __init__(self):
@@ -16,9 +17,17 @@ class SemanticMapMaster:
         rospy.set_param("det_seg_processing", False)
         rospy.set_param("depth_repair_processing", False)
 
+        # 检测类别json文件路径
+        self.semantic_categories_json_path = rospy.get_param(
+            "~semantic_categories_json_path", "semantic_categories.json"
+        )
+
         # 设置检测目标（通过参数服务器给整个系统共用）
         class_list = ['keyboard', 'mouse', 'cell phone', 'earphone', 'laptop', 'water bottle', 'keys', 'potted plant']
         rospy.set_param("detection_prompt", class_list)
+
+        # 从json文件加载检测目标类别
+        self.reload_semantic_categories()
 
         self.latest_image = None
         self.latest_depth = None
@@ -63,6 +72,16 @@ class SemanticMapMaster:
         self.tf_pub = rospy.Publisher('tf_transform', TransformStamped, queue_size=10)
 
         rospy.loginfo("semantic_map_master_node initialization complete.")
+
+    def reload_semantic_categories(self):
+        self.semantic_categories = json.load(
+            open(self.semantic_categories_json_path, "r")
+        )[
+            "categories"
+        ]  # list
+        rospy.set_param("detection_prompt", self.semantic_categories)
+        # self.current_prompt = ". ".join(self.semantic_categories) + "."  # str
+
 
 
     def timer_callback(self, event):
