@@ -1,7 +1,6 @@
 #!/usr/bin/env python
 import rospy
-from sensor_msgs.msg import Image, CameraInfo
-from std_msgs.msg import Bool
+from sensor_msgs.msg import Image
 from cv_bridge import CvBridge
 from tf2_ros import Buffer, TransformListener
 from message_filters import ApproximateTimeSynchronizer, Subscriber
@@ -24,16 +23,9 @@ class SemanticMapMaster:
         self.latest_depth = None
 
         self.tf_buffer = Buffer()
-        self.tf_listener = TransformListener(self.tf_buffer)
+        self.tf_listener = TransformListener(self.tf_buffer)    
 
-        rospy.loginfo("master node")    
-
-        # # 等待yolo_evsam_ros加载完模型
-        # rospy.wait_for_message("yolo_evsam_ros_init", Bool)
-
-        # # 等待depth_anything_ros加载完模型
-        # rospy.wait_for_message("depth_anything_ros_init", Bool)
-        # 轮询参数，等待目标节点设置 "model_loaded" 为 True
+        # 轮询参数，等待目标节点设置 "init" 为 True，即模型加载完成
         while not (rospy.has_param("/depth_anything_ros_init") and rospy.has_param("/yolo_evsam_ros_init")):
             rospy.loginfo("Waiting for model to load...")
             time.sleep(2)
