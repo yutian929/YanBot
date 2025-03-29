@@ -2,7 +2,6 @@
 import rospy
 from sensor_msgs.msg import Image
 from geometry_msgs.msg import TransformStamped
-from cv_bridge import CvBridge
 from tf2_ros import Buffer, TransformListener
 from message_filters import ApproximateTimeSynchronizer, Subscriber
 import threading
@@ -45,7 +44,7 @@ class SemanticMapMaster:
         self.data_lock = threading.Lock()    
 
         # 定时器
-        rospy.Timer(rospy.Duration(0.6), self.timer_callback)
+        rospy.Timer(rospy.Duration(0.1), self.timer_callback)
 
         # 订阅rgb图像
         topic_image_sub = rospy.get_param(
@@ -80,9 +79,6 @@ class SemanticMapMaster:
             "categories"
         ]  # list
         rospy.set_param("detection_prompt", self.semantic_categories)
-        # self.current_prompt = ". ".join(self.semantic_categories) + "."  # str
-
-
 
     def timer_callback(self, event):
         """定时器回调"""
@@ -98,9 +94,6 @@ class SemanticMapMaster:
 
                 # 检测分割和深度修复均不在进行中
                 if (not det_seg_processing) and (not depth_repair_processing):
-                    # image = self.latest_image.copy()
-                    # depth = self.latest_depth.copy()
-
                     # 先确认当前最新图像有没有对应时间的tf变换
                     # 相机坐标系变换约在图像数据到达的0.03s之后才会生成，map->odom的tf的时间戳反而是当前时间的未来0.1s
                     time_stamp = self.latest_image.header.stamp
@@ -108,7 +101,7 @@ class SemanticMapMaster:
                         "map",
                         "camera_color_optical_frame",  # 使用光学坐标系
                         time_stamp,  # 使用图像时间戳
-                        rospy.Duration(0.05),
+                        rospy.Duration(0.1),
                     )
                     transform.header.stamp = time_stamp
                     # 发布 TF 变换消息
@@ -124,14 +117,11 @@ class SemanticMapMaster:
         except Exception as e:
             rospy.logerr(f"Sync callback error: {str(e)}")
 
-
     def update_latest_image_and_depth(self, img_msg, depth_msg):
         """持续记录当前最新的图像消息"""
         with self.data_lock:
             self.latest_image = img_msg
             self.latest_depth = depth_msg
-            # rospy.loginfo("latest_image and latest_depth update.")
-
 
 
 if __name__ == "__main__":
