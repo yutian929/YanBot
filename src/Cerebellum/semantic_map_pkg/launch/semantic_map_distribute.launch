@@ -9,6 +9,11 @@
     <include file="$(find yolo_evsam_ros)/launch/yoesam_distributed.launch" if="$(eval det_seg_mode == 'yoesam')"/>
     <include file="$(find grounding_sam_ros)/launch/gsam_distributed.launch" if="$(eval det_seg_mode == 'gsam')"/>
     
+    <arg name="enable_depth_repair" default="true" doc="是否启用深度修复"/>
+
+    <include file="$(find depth_anything_ros)/launch/depth_repair.launch">
+        <arg name="enable_depth_repair" value="$(arg enable_depth_repair)"/>
+    </include>
 
     <!-- grounding_sam_ros -->
     <!-- <include file="$(find grounding_sam_ros)/launch/gsam_distributed.launch"/> -->
@@ -16,7 +21,7 @@
     <!-- <include file="$(find yolo_evsam_ros)/launch/yoesam_distributed.launch"/> -->
 
     <!-- depth_anything_ros -->
-    <include file="$(find depth_anything_ros)/launch/depth_repair.launch"/>
+    <!-- <include file="$(find depth_anything_ros)/launch/depth_repair.launch"/> -->
 
     <!-- master节点 -->
     <node name="semantic_map_master_node" 

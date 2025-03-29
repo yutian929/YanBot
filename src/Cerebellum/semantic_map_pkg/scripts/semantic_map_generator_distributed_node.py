@@ -11,10 +11,7 @@ from tf2_ros import Buffer, TransformListener
 import tf
 import struct
 import threading
-# from sklearn.neighbors import KDTree
-# from sklearn.cluster import DBSCAN
 from semantic_map_pkg.msg import SemanticObject
-from datetime import datetime
 from grounding_sam_ros.srv import (
     VitDetection,
     VitDetectionResponse,
@@ -27,11 +24,6 @@ import supervision as sv
 import concurrent.futures
 import time 
 from scipy.optimize import curve_fit
-
-import matplotlib
-import matplotlib.pyplot as plt
-import matplotlib.colors as mcolors
-matplotlib.use('Agg')  # 设定非GUI后端，避免 Tkinter 问题
 
 import os
 
@@ -155,8 +147,8 @@ class SemanticMapGenerator:
         for mask, label, score in zip(masks, labels, scores):
             # valid_mask = mask > 0  # 将掩码数据类型转化为bool数组
 
-            if np.count_nonzero(mask > 0) > 500 :
-                # 如果掩码点数原本就小于500，不做腐蚀
+            if np.count_nonzero(mask > 0) > 1500 :
+                # 如果掩码点数原本就小于阈值，不做腐蚀
                 # 对掩码进行腐蚀操作，减少物体边缘点云离群的概率
                 kernel = np.ones((3, 3), np.uint8)  # 可以调整 kernel 大小来控制去噪的强度
                 mask = cv2.erode(mask, kernel, iterations=5)  # 执行腐蚀操作
